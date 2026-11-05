@@ -1,0 +1,47 @@
+from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
+
+
+class UserRegister(BaseModel):
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., min_length=6, description="Password with minimum 6 characters")
+    full_name: str = Field(..., min_length=2)
+    role: Optional[str] = Field("creator", description="Role: creator, reviewer, or admin")
+    organization_name: Optional[str] = Field(None, description="Optional organization name")
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class DemoLoginRequest(BaseModel):
+    role: str = Field(..., description="Role to switch into: creator, reviewer, or admin")
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    email: str
+    full_name: str
+    role: str
+    organization_id: str
+    organization_name: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+class TokenPayload(BaseModel):
+    sub: str
+    email: str
+    role: str
+    org_id: str
+    exp: int

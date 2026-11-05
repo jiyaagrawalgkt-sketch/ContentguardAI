@@ -1,0 +1,60 @@
+# Render Blueprint Specification for ContentGuard AI
+services:
+  # -------------------------------------------------------------
+  # 1. ContentGuard Python FastAPI Backend Web Service
+  # -------------------------------------------------------------
+  - type: web
+    name: contentguard-backend
+    env: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python scripts/seed_demo.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: contentguard-db
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: CORS_ORIGINS
+        value: "https://contentguard-ai.vercel.app,http://localhost:3000"
+
+  # -------------------------------------------------------------
+  # 2. ContentGuard Next.js Frontend Web Service
+  # -------------------------------------------------------------
+  - type: web
+    name: contentguard-frontend
+    env: node
+    region: oregon
+    plan: starter
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm run start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: contentguard-backend
+          property: host
+          path: /api/v1
+
+# ---------------------------------------------------------------
+# Managed PostgreSQL Database
+# ---------------------------------------------------------------
+databases:
+  - name: contentguard-db
+    plan: starter
+    region: oregon
+    databaseName: contentguard
+    user: contentguard_user
