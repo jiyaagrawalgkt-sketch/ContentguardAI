@@ -52,6 +52,8 @@ class ContentSubmission(Base):
     review_comments = relationship("ReviewComment", back_populates="submission", cascade="all, delete-orphan")
     approval_records = relationship("ApprovalRecord", back_populates="submission", cascade="all, delete-orphan")
     published_content = relationship("PublishedContent", back_populates="submission", uselist=False, cascade="all, delete-orphan")
+    extracted_claims = relationship("ExtractedClaim", back_populates="submission", cascade="all, delete-orphan")
+    visual_reports = relationship("VisualAnalysisReport", back_populates="submission", cascade="all, delete-orphan")
 
 
 class UploadedFile(Base):

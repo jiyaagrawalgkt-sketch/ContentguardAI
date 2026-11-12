@@ -4,10 +4,19 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { ShieldCheck, LogOut, LayoutDashboard, FileText, ClipboardCheck } from "lucide-react";
+import {
+  ShieldCheck,
+  LogOut,
+  LayoutDashboard,
+  FileText,
+  ClipboardCheck,
+  ShieldAlert,
+  Layers,
+  Sparkles,
+} from "lucide-react";
 
 export function AppNavbar() {
-  const { user, logout } = useAuth();
+  const { user, isDemoMode, logout } = useAuth();
   const pathname = usePathname();
 
   return (
@@ -27,11 +36,17 @@ export function AppNavbar() {
           <span className="text-xs text-midnight-600 font-medium hidden sm:inline">
             Review it before it ships.
           </span>
+          {isDemoMode && (
+            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-600" />
+              Judge Sandbox Mode
+            </span>
+          )}
         </div>
 
         {/* Authorized Workspace Navigation & User Profile */}
         <div className="flex items-center gap-4">
-          {/* Workspace Links based on genuine assigned role */}
+          {/* Workspace Links based on assigned role */}
           <div className="hidden md:flex items-center gap-1.5 p-1 rounded-xl bg-lavender-100/70 border border-midnight-100 text-xs">
             {user?.role === "admin" && (
               <>
@@ -44,9 +59,117 @@ export function AppNavbar() {
                   }`}
                 >
                   <LayoutDashboard className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Admin Panel</span>
+                  <span>Admin</span>
                 </Link>
 
+                <Link
+                  href="/knowledge-base"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/knowledge-base")
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Knowledge Hub</span>
+                </Link>
+
+                <Link
+                  href="/compliance"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/compliance")
+                      ? "bg-white text-amber-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Compliance</span>
+                </Link>
+
+                <Link
+                  href="/creator"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/creator")
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Creator</span>
+                </Link>
+
+                <Link
+                  href="/reviewer"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/reviewer")
+                      ? "bg-white text-purple-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Reviewer</span>
+                </Link>
+              </>
+            )}
+
+            {user?.role === "compliance_officer" && (
+              <>
+                <Link
+                  href="/compliance"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/compliance")
+                      ? "bg-white text-amber-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Compliance Queue</span>
+                </Link>
+
+                <Link
+                  href="/knowledge-base"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/knowledge-base")
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Knowledge Base</span>
+                </Link>
+              </>
+            )}
+
+            {user?.role === "reviewer" && (
+              <>
+                <Link
+                  href="/reviewer"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/reviewer")
+                      ? "bg-white text-purple-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Reviewer Station</span>
+                </Link>
+
+                <Link
+                  href="/knowledge-base"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                    pathname?.startsWith("/knowledge-base")
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-midnight-600 hover:text-midnight-950"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Knowledge Base</span>
+                </Link>
+              </>
+            )}
+
+            {user?.role === "creator" && (
+              <>
                 <Link
                   href="/creator"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
@@ -60,45 +183,17 @@ export function AppNavbar() {
                 </Link>
 
                 <Link
-                  href="/reviewer"
+                  href="/knowledge-base"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                    pathname?.startsWith("/reviewer")
-                      ? "bg-white text-purple-700 shadow-sm"
+                    pathname?.startsWith("/knowledge-base")
+                      ? "bg-white text-brand-700 shadow-sm"
                       : "text-midnight-600 hover:text-midnight-950"
                   }`}
                 >
-                  <ClipboardCheck className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Reviewer Station</span>
+                  <Layers className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Knowledge Base</span>
                 </Link>
               </>
-            )}
-
-            {user?.role === "reviewer" && (
-              <Link
-                href="/reviewer"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                  pathname?.startsWith("/reviewer")
-                    ? "bg-white text-purple-700 shadow-sm"
-                    : "text-midnight-600 hover:text-midnight-950"
-                }`}
-              >
-                <ClipboardCheck className="w-3.5 h-3.5 text-purple-600" />
-                <span>Reviewer Station</span>
-              </Link>
-            )}
-
-            {user?.role === "creator" && (
-              <Link
-                href="/creator"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                  pathname?.startsWith("/creator")
-                    ? "bg-white text-brand-700 shadow-sm"
-                    : "text-midnight-600 hover:text-midnight-950"
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 text-brand-600" />
-                <span>Creator Studio</span>
-              </Link>
             )}
           </div>
 
@@ -108,6 +203,8 @@ export function AppNavbar() {
               className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
                 user?.role === "admin"
                   ? "bg-emerald-100 text-emerald-800"
+                  : user?.role === "compliance_officer"
+                  ? "bg-amber-100 text-amber-800"
                   : user?.role === "reviewer"
                   ? "bg-purple-100 text-purple-800"
                   : "bg-brand-100 text-brand-800"
@@ -124,12 +221,14 @@ export function AppNavbar() {
                   className={`inline-block text-[10px] font-bold uppercase tracking-wider ${
                     user?.role === "admin"
                       ? "text-emerald-700"
+                      : user?.role === "compliance_officer"
+                      ? "text-amber-700"
                       : user?.role === "reviewer"
                       ? "text-purple-700"
                       : "text-brand-700"
                   }`}
                 >
-                  {user?.role || "Creator"}
+                  {user?.role?.replace("_", " ") || "Creator"}
                 </span>
                 {user?.organization_name && (
                   <span className="text-[10px] text-midnight-400 font-normal truncate max-w-[120px]">

@@ -32,9 +32,13 @@ import {
   X,
   Filter,
   Trash2,
-  Cpu
+  Cpu,
+  Palette,
+  Layers,
 } from "lucide-react";
 import { DetectedIssue, ContentSubmission, AnalysisReport } from "@/types";
+import { EvidenceGraph } from "@/components/evidence/EvidenceGraph";
+import { VisualAuditPanel } from "@/components/multimodal/VisualAuditPanel";
 
 interface ExtendedReport extends Omit<AnalysisReport, "issues"> {
   issues: DetectedIssue[];
@@ -48,6 +52,7 @@ export default function CorrectionWorkspacePage() {
   const [submission, setSubmission] = useState<ContentSubmission | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [report, setReport] = useState<ExtendedReport | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<"text" | "evidence" | "multimodal">("text");
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -411,8 +416,60 @@ export default function CorrectionWorkspacePage() {
           </div>
         )}
 
+        {/* Workspace Feature Mode Selector (Round 3) */}
+        <div className="mb-6 flex flex-wrap items-center gap-2 p-1 rounded-2xl bg-white border border-midnight-200/80 shadow-sm w-fit">
+          <button
+            onClick={() => setWorkspaceTab("text")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "text"
+                ? "bg-midnight-900 text-white shadow"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <FileCheck2 className="w-3.5 h-3.5" />
+            <span>Text Governance & Violations</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("evidence")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "evidence"
+                ? "bg-brand-600 text-white shadow"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Evidence Intelligence Graph</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("multimodal")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "multimodal"
+                ? "bg-indigo-600 text-white shadow"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>Multimodal Brand Intelligence</span>
+          </button>
+        </div>
+
+        {workspaceTab === "evidence" && (
+          <div className="mb-8">
+            <EvidenceGraph submissionId={id} submissionTitle={submission?.title} />
+          </div>
+        )}
+
+        {workspaceTab === "multimodal" && (
+          <div className="mb-8">
+            <VisualAuditPanel submissionId={id} />
+          </div>
+        )}
+
         {/* Side-by-Side Correction Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {workspaceTab === "text" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Pane: Content Editor (7 Cols) */}
           <div className="lg:col-span-6 bg-white rounded-3xl border border-midnight-100 shadow-card p-6 flex flex-col">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-midnight-100">
@@ -835,6 +892,7 @@ export default function CorrectionWorkspacePage() {
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

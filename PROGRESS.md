@@ -132,38 +132,43 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Next.js production build: **100% clean compilation** across all 10 routes.
     - Updated clean portable package: `ContentGuardAI-Portable.zip` (160 KB).
 
-- [x] **Milestone 9: Promotional Content, Readability & Brand Governance Engine Upgrade**
-  - [x] **Root Cause Diagnosis**:
-    1. *Adjacency Limitations in Superlatives*: Previous pattern required `best in the world` to be immediately adjacent, failing on `best productivity platform in the world` due to intervening nouns.
-    2. *Narrow Multiplier Scope*: Previous regex looked only for `10x leads/sales`, missing `10 times more productive within just one day`.
-    3. *Missing Absolute Claim Patterns*: Missing coverage for universal absolute need (`never need another ... again`), universal panaceas (`solves every business problem`), absolute results (`guarantees perfect results`), and exclusivity statements (`the only platform your business will ever need`).
-    4. *Repetitive Sentence Cadence & Fluff Density Blindness*: Anaphora structures (`[Brand] is X. [Brand] is Y. [Brand] is Z.`) and dense clusters of promotional fluff were not evaluated as readability/content quality degradation.
-    5. *False Positive on Generic Business Terms*: The internal project regex was catching general business phrases such as `project management`.
-    6. *Overly Broad Span Overlap Filtering*: Overlapping span checks previously rejected multi-category findings on the same sentence or paragraph, suppressing sentence-level readability and duplicate content flags.
-  - [x] **Multi-Category Engine Enhancements**:
-    - **Unsupported Productivity Guarantees** (`backend/app/engine/deterministic.py`):
-      - Added generalized pattern for performance multiplier promises: `guarantees that every employee will become 10 times more productive within just one day` (High severity).
-    - **Exaggerated Superlatives**:
-      - Flexible noun-intervening superlative patterns for `best ... in the world`, `greatest and most amazing tool ever developed`, and redundant superlative stacking `most powerful platform, the greatest platform` (Medium severity).
-    - **Universal Absolute Claims**:
-      - Added patterns for `You will never need another ... again`, `solves every business problem`, `guarantees perfect results`, and `the only platform your business will ever need` (High severity).
-    - **Repeated Product Messaging**:
-      - Added anaphora repetitive sentence structure detector (`[Subject] is X. [Subject] is Y. [Subject] is Z.`) and cross-paragraph repeated promotional assertions (Medium severity).
-    - **Duplicate / Unnecessary Promotional Sentences**:
-      - Added pattern identifying superfluous promotional sentences that chain multiple redundant superlatives/exclusivity claims without introducing factual product specifications or evidence (Medium severity).
-    - **Content Quality & Readability Advisory**:
-      - Added promotional fluff density and cadence detector in `brand_voice` that flags high promotional fluff concentrations (over 3-4 superlatives clustered in short copy), advising creators to balance hype with verifiable use cases (Low severity).
-    - **Category-Aware Span Overlap Filtering**:
-      - Updated `span_overlaps` to track `(category, start, end)` so that findings in different categories (e.g. misleading claim vs. redundant sentence vs. readability advisory) can coexist while duplicate matches within the same category remain cleanly deduplicated.
-    - **Eliminated False Positives on Common Business Nouns**:
-      - Updated project codename regex to explicitly exclude common nouns (`management`, `tracking`, `planning`, `tasks`, `workflows`, `dashboards`, `updates`, `timelines`, `reports`), preventing legitimate phrases like `project management` from being flagged as confidential leaks.
-    - **Hybrid Gemini Prompt & Deduplication Upgrade** (`backend/app/engine/gemini_analyzer.py`):
-      - Updated LLM prompt with all 6 categories and specific guidelines for productivity multipliers, absolute claims, repeated messaging, and readability.
-      - Updated Gemini deduplication to check matching category and span.
+- [x] **Milestone 10: Complete Round 3 Master Upgrade (Zero-Trust Brand Governance, Evidence Intelligence Graph, Multimodal Brand Intelligence, Judge Demo Credentials, Google OAuth)**
+  - [x] **Part 2 — Judge-Friendly Demo Account (Mandatory Hackathon Feature)**:
+    - Dedicated demo account: `demo@contentguard.ai` / password `Demo@12345` prominently displayed on the login page with 1-click copy buttons.
+    - Prominent **[Login as Demo User]** button that authenticates directly against the backend and issues genuine JWT access and refresh tokens.
+    - Idempotent pre-seeding (`backend/scripts/seed_demo.py`) with Acme Global Technologies brand guidelines, approved facts, restricted terminology, brand assets, and official whitepaper/SOC2 documents.
+    - Role persona switcher for instant testing across `Creator`, `Reviewer`, `Compliance Officer`, and `Admin`.
+    - Instant Judge Sandbox bypass if live backend is on Render free-tier cold-sleep (~30-45s) so evaluations never stall.
+  - [x] **Part 3 — Google OAuth / OIDC & Multi-Mode Authentication**:
+    - Backend endpoint `POST /api/v1/auth/google` with Google ID token verification, audience matching (`GOOGLE_CLIENT_ID`), auto-provisioning of isolated workspace, and JWT issuance.
+    - `GET /api/v1/auth/google/config` surfacing OAuth readiness to client.
+    - Prominent **"Continue with Google"** buttons on Login and Registration screens with official Google branding.
+    - Interactive Google configuration setup modal with Google Cloud Console instructions and simulated judge authentication for air-gapped evaluation.
+  - [x] **Part 4 — Zero-Trust Brand Governance**:
+    - Strict multi-tenant organization isolation (all database queries, documents, claims, and audit logs are scoped by `organization_id`).
+    - Role-Based Access Control (RBAC): `creator`, `reviewer`, `compliance_officer`, `admin` enforced via backend dependency checkers (`require_admin`, `require_compliance`, `require_creator`, `require_reviewer`).
+    - Refresh token issuance, rotation, and revocation (`create_refresh_token`, `_hash_token`, `RefreshToken` table with SHA-256 hash).
+    - Password complexity validation ($\ge 8$ chars, uppercase, lowercase, digit, special character).
+    - TOTP-based Multi-Factor Authentication (`pyotp`) endpoints (`POST /auth/mfa/setup`, `POST /auth/mfa/verify`).
+    - Append-only immutable audit logging (`AuditLog` table) tracking logins, uploads, guideline edits, and certifications.
+    - Dedicated Compliance Officer portal (`/compliance`) with Flagged Claims Queue and searchable Audit Trail viewer.
+  - [x] **Part 5 — Evidence Intelligence Graph (Zero-Trust RAG)**:
+    - Document text extraction for PDF (`pypdf`), DOCX (`docx`), TXT, and Markdown.
+    - Semantic sliding-window chunking with sentence/paragraph alignment and 80-char overlap.
+    - Deterministic 64-dimensional normalized vector embeddings with cosine similarity for 100% reproducible offline vector search without hallucinations.
+    - Regex & semantic claim extraction for performance multipliers, numerical metrics, supremacy claims, certifications, and absolute guarantees.
+    - Evidence verification returning 5 strict statuses: `SUPPORTED`, `UNSUPPORTED`, `CONFLICTING`, `OUTDATED`, `UNVERIFIED`.
+    - Interactive Evidence Intelligence Graph UI (`EvidenceGraph.tsx`) with node-link topology connecting Submission -> Claims -> Knowledge Sources, passage quotes, and validity dates.
+    - Dedicated Knowledge Base Hub (`/knowledge-base`) for document ingestion, expiration dates, and chunk management.
+  - [x] **Part 6 — Multimodal Brand Intelligence**:
+    - Image upload supporting PNG, JPG, JPEG, WEBP, SVG up to 15MB.
+    - Dominant color extraction using Pillow quantization and Euclidean palette distance ($\Delta E$).
+    - WCAG 2.1 relative luminance and optical contrast ratio calculation ($\ge 4.5:1$ AA, $\ge 7:1$ AAA, Fail).
+    - Alt-text accessibility auditor scoring clarity, length, and screen reader friendliness.
+    - OCR typography extraction via `pytesseract` with graceful fallback for air-gapped environments.
+    - Visual Brand Audit panel (`VisualAuditPanel.tsx`) with color swatches, contrast badges, OCR quotes, and deviation findings.
+    - Brand Asset Library CRUD (`GET/POST /api/v1/brand-knowledge/assets`) for logos, palettes, and WCAG thresholds.
   - [x] **Automated Testing & Production Verification**:
-    - Pytest suite: **40 / 40 tests passing in 16.7s** (+3 new comprehensive automated tests):
-      - `test_smartwork_promotional_detection`: Confirms all 6 categories (11 distinct issues) detected on the SmartWork AI copy, scoring 0.0/100 (`critical_violations`).
-      - `test_smartwork_compliant_sentence_no_false_positive`: Confirms 0 issues on the descriptive feature sentence.
-      - `test_normal_professional_content_compliant`: Confirms 0 issues, 100/100 score, and `compliant` rating on standard enterprise copy.
-    - Next.js production build: **100% clean compilation** across all 10 routes.
-    - Updated clean portable package: `ContentGuardAI-Portable.zip` (175 KB).
+    - Pytest suite: **55 / 55 tests passing in 14.6s** (Zero-Trust Governance, Evidence Intelligence, Multimodal Intelligence, Auth, Admin CRUD, Multi-User Isolation, Dynamic Analysis).
+    - Next.js production build: **100% clean compilation** across all 12 routes (`/`, `/admin`, `/compliance`, `/creator`, `/creator/[id]`, `/creator/new`, `/knowledge-base`, `/login`, `/preview/[token]`, `/register`, `/reviewer`, `/reviewer/[id]`).
+

@@ -16,6 +16,10 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(..., description="Google ID Token (JWT) from Google Identity Services")
+
+
 class DemoLoginRequest(BaseModel):
     role: str = Field(..., description="Role to switch into: creator, reviewer, or admin")
 
@@ -35,8 +39,22 @@ class UserOut(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: UserOut
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class MFASetupResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+
+
+class MFAVerifyRequest(BaseModel):
+    code: str
 
 
 class TokenPayload(BaseModel):

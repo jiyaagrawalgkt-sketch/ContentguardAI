@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { AppNavbar } from "@/components/layout/AppNavbar";
+import { EvidenceGraph } from "@/components/evidence/EvidenceGraph";
 import { getScoreBadge } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -267,6 +268,11 @@ export default function ReviewerStationPage() {
               {currentV?.change_summary || "Latest corrected version"}
             </p>
           </div>
+        </div>
+
+        {/* Evidence Verification Graph & Fact Grounding */}
+        <div className="mb-6">
+          <EvidenceGraph submissionId={id} submissionTitle={submission?.title} />
         </div>
 
         {/* Reviewer Decision Station */}

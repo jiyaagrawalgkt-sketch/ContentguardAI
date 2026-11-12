@@ -51,9 +51,10 @@ def init_db():
         with engine.begin() as conn:
             if db_url.startswith("sqlite"):
                 cursor = conn.connection.cursor()
+                
+                # detected_issues
                 cursor.execute("PRAGMA table_info(detected_issues)")
                 existing_cols = {row[1] for row in cursor.fetchall()}
-                cursor.close()
                 if existing_cols:
                     if "category" not in existing_cols:
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN category VARCHAR(50) DEFAULT 'brand_voice'"))
@@ -65,11 +66,42 @@ def init_db():
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN is_dismissed BOOLEAN DEFAULT 0"))
                     if "dismiss_reason" not in existing_cols:
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN dismiss_reason VARCHAR(255)"))
+
+                # users
+                cursor.execute("PRAGMA table_info(users)")
+                user_cols = {row[1] for row in cursor.fetchall()}
+                if user_cols:
+                    if "mfa_enabled" not in user_cols:
+                        conn.execute(sa_text("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0"))
+                    if "mfa_secret" not in user_cols:
+                        conn.execute(sa_text("ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)"))
+
+                # brand_assets
+                cursor.execute("PRAGMA table_info(brand_assets)")
+                asset_cols = {row[1] for row in cursor.fetchall()}
+                if asset_cols:
+                    if "neutral_color_hex" not in asset_cols:
+                        conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN neutral_color_hex VARCHAR(7)"))
+                    if "color_palette_json" not in asset_cols:
+                        conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN color_palette_json JSON"))
+                    if "logo_hash" not in asset_cols:
+                        conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN logo_hash VARCHAR(128)"))
+                    if "wcag_min_contrast" not in asset_cols:
+                        conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN wcag_min_contrast FLOAT DEFAULT 4.5"))
+                cursor.close()
             else:
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'brand_voice'"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS recommended_action VARCHAR(30) DEFAULT 'Replace'"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS detection_source VARCHAR(50) DEFAULT 'Rule Engine'"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS is_dismissed BOOLEAN DEFAULT FALSE"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS dismiss_reason VARCHAR(255)"))
+                conn.execute(sa_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
+                conn.execute(sa_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(64)"))
+                conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS neutral_color_hex VARCHAR(7)"))
+                conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS color_palette_json JSONB"))
+                conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS logo_hash VARCHAR(128)"))
+                conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS wcag_min_contrast FLOAT DEFAULT 4.5"))
+    except Exception:
+        pass
     except Exception:
         pass

@@ -194,15 +194,88 @@ This script automatically opens two designated PowerShell windows:
 
 ---
 
-## 12. Pre-Configured Demo Accounts
+## 12. Pre-Configured Demo Accounts (Judge & Hackathon Evaluation)
 
-If you chose to seed demo accounts during setup (or by running `python backend\scripts\seed_demo.py`), you can sign in with these credentials directly on the login page:
+ContentGuard AI provides a dedicated, pre-seeded Hackathon Demo Account displayed directly on the login page for instantaneous 1-click evaluation:
 
-| Persona | Email | Password | Landing Page & Capabilities |
+| Account Type | Email | Password | Landing Page & Capabilities |
 | :--- | :--- | :--- | :--- |
+| 🌟 **Judge Demo User** | `demo@contentguard.ai` | `Demo@12345` | **`/creator`** — Multi-Persona Demo Account with 1-click login on login page, seeded brand guidelines, sample knowledge base papers, vector chunks, and brand assets |
+| **Compliance Officer** | `compliance@contentguard.demo` | `Demo@123` | **`/compliance`** — Regulatory claim verification queue, certify/reject actions, and append-only audit trail logs |
 | **Administrator** | `admin@contentguard.demo` | `Demo@123` | **`/admin`** — Platform overview KPIs, user management, role assignments, system health |
-| **Reviewer** | `reviewer@contentguard.demo` | `Demo@123` | **`/reviewer`** — Queue status filters, side-by-side diffs, conflict guard, approve & certify |
-| **Creator** | `creator@contentguard.demo` | `Demo@123` | **`/creator`** — Load sample drafts, run AI analysis, apply 1-click fixes, submit for review |
+| **Reviewer** | `reviewer@contentguard.demo` | `Demo@123` | **`/reviewer`** — Queue status filters, side-by-side diffs, evidence verification graph, conflict guard, approve & publish |
+| **Creator** | `creator@contentguard.demo` | `Demo@123` | **`/creator`** — Load sample drafts, run AI analysis, apply 1-click fixes, multimodal visual audits, submit for review |
+
+---
+
+## 13. Round 3 Enterprise Features
+
+### Feature 1: Zero-Trust Brand Governance
+- **Cryptographic Multi-Tenancy**: Organization-level isolation enforced at the database query layer (`org_id` scoping). Cross-tenant queries are blocked with `HTTP 403 Forbidden`.
+- **Granular RBAC**: 4 distinct roles (`creator`, `reviewer`, `compliance_officer`, `admin`) enforced on both API routes and client interfaces.
+- **JWT Access + Refresh Token Rotation**: Ephemeral 30-minute access tokens paired with secure 7-day refresh tokens stored as SHA-256 hashes in `refresh_tokens` table with cryptographic `jti` entropy. Instant token revocation on logout.
+- **Enterprise Password Complexity**: Enforces $\ge 8$ characters, uppercase, lowercase, numerical digit, and special character.
+- **TOTP Multi-Factor Authentication**: RFC 6238 time-based one-time passwords via `pyotp` (`/auth/mfa/setup` & `/auth/mfa/verify`).
+- **Append-Only Audit Logging**: Dedicated `audit_logs` table recording timestamp, user, action, resource, IP address, and payload diffs for regulatory compliance inspections.
+
+### Feature 2: Evidence Intelligence Graph
+- **Multi-Format Ingestion**: Ingests PDF, DOCX, TXT, and Markdown whitepapers into the Knowledge Vault (`/knowledge-base`).
+- **Sliding-Window Semantic Chunking**: Automatic document chunking with character overlap preserving context across boundaries.
+- **Deterministic 64-D Vector Embeddings**: Cosine similarity search over normalized n-gram semantic embeddings running 100% offline with zero external network dependencies and zero hallucinations.
+- **Automated Claim Extraction**: Regex and NLP pattern extraction identifying numerical metrics, performance multipliers, absolute guarantees, certifications, and supremacy claims.
+- **5-State Fact Grounding**: Each claim is evaluated against ingested organizational evidence as `SUPPORTED`, `UNSUPPORTED`, `CONFLICTING`, `OUTDATED`, or `UNVERIFIED` with exact source document citations and similarity confidence scores.
+- **Interactive Node-Link Topology Graph**: Cytoscape/SVG-style visual graph (`EvidenceGraph.tsx`) linking draft submissions to extracted claims and cited knowledge base chunks with real-time status filtering.
+
+### Feature 3: Multimodal Brand Intelligence
+- **Brand Asset Vault**: Centralized management of primary/secondary brand palettes, typography, and SVG/PNG logos (`/brand-knowledge/assets`).
+- **Dominant Color Extraction & Palette Distance**: K-means/Euclidean color quantization extracting hex swatches from uploaded images and calculating $\Delta E$ Euclidean distance against approved corporate palette colors.
+- **WCAG 2.1 Luminance & Contrast Ratio Calculator**: Computes relative luminance and precise foreground/background contrast ratios:
+  $$\text{Contrast Ratio} = \frac{L_1 + 0.05}{L_2 + 0.05}$$
+  Enforces WCAG AA ($\ge 4.5:1$) and AAA ($\ge 7:1$) accessibility compliance standards.
+- **OCR Text Extraction**: Automated text detection and extraction (`pytesseract` with graceful fallback) scanning embedded visual banners for restricted slogans.
+- **Alt-Text Accessibility Auditor**: Analyzes image `alt` descriptions for length, keyword stuffing, and descriptive context.
+
+---
+
+## 14. Google OAuth 2.0 Integration & Setup
+
+ContentGuard AI supports single sign-on via Google OAuth 2.0 / OpenID Connect:
+
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/).
+2. Navigate to **APIs & Services** > **Credentials**.
+3. Create an **OAuth 2.0 Client ID** (Web Application).
+4. Add Authorized JavaScript Origins:
+   - Development: `http://localhost:3000`
+   - Production: `https://your-vercel-domain.vercel.app`
+5. Configure environment variables in backend `.env`:
+   ```env
+   GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-google-client-secret
+   ```
+6. On the login/register screen, users can click **"Continue with Google"** for zero-friction sign-on with automatic organization provisioning.
+
+---
+
+## 15. Cloud Deployment Guide (Vercel & Render)
+
+### Backend Deployment (Render)
+1. In Render, create a new **Web Service** pointing to your repository.
+2. Root Directory: `backend`
+3. Environment: `Python 3`
+4. Build Command: `pip install -r requirements.txt`
+5. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+6. Set Environment Variables:
+   - `DATABASE_URL`: Your PostgreSQL connection string or SQLite default.
+   - `JWT_SECRET`: A secure random cryptographic key.
+   - `GEMINI_API_KEY`: Your Google Gemini API key (optional; deterministic fallback active).
+
+### Frontend Deployment (Vercel)
+1. In Vercel, import your GitHub repository.
+2. Root Directory: `frontend`
+3. Framework Preset: `Next.js`
+4. **Environment Variables**:
+   - `NEXT_PUBLIC_API_URL`: Your Render backend URL (e.g. `https://contentguardai-backend.onrender.com`).
+   > ℹ️ *Note*: The frontend automatically normalizes the URL to append `/api/v1` and includes cold-start resilience to prevent timeouts.
 
 ---
 

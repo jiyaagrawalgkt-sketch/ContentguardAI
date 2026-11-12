@@ -67,3 +67,6 @@ class RoleChecker:
 require_creator = RoleChecker(["creator", "reviewer", "admin"])
 require_reviewer = RoleChecker(["reviewer", "admin"])
 require_admin = RoleChecker(["admin"])
+require_compliance = RoleChecker(["compliance_officer", "admin"])
+require_compliance_or_reviewer = RoleChecker(["compliance_officer", "reviewer", "admin"])
+require_any_authenticated = RoleChecker(["creator", "reviewer", "compliance_officer", "admin"])

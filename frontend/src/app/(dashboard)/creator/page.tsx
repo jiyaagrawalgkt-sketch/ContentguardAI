@@ -151,6 +151,14 @@ export default function CreatorDashboardPage() {
 
           <div className="flex items-center gap-2">
             <Link
+              href="/knowledge-base"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-midnight-800 bg-white hover:bg-lavender-100 border border-midnight-200 shadow-sm transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+              <span>Knowledge Hub</span>
+            </Link>
+
+            <Link
               href="/creator/new"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-midnight-900 hover:bg-midnight-800 shadow-card hover:shadow-elevated transition-all"
             >

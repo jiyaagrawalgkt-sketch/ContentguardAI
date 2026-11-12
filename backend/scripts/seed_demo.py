@@ -17,11 +17,20 @@ from app.models import (
     RestrictedTerm,
     BrandAsset,
     AuditLog,
+    KnowledgeDocument,
+    DocumentChunk,
 )
+from app.engine.evidence_engine import chunk_text, generate_embedding
 
-DEMO_PASSWORD = "Demo@123"
+DEMO_PASSWORD = "Demo@12345"
 
 DEMO_USERS = [
+    {
+        "email": "demo@contentguard.ai",
+        "full_name": "Hackathon Judge (Demo User)",
+        "role": UserRole.CREATOR.value,
+        "password": DEMO_PASSWORD,
+    },
     {
         "email": "creator@contentguard.demo",
         "full_name": "Alex Rivera (Creator)",
@@ -38,6 +47,12 @@ DEMO_USERS = [
         "email": "admin@contentguard.demo",
         "full_name": "Marcus Vance (Admin)",
         "role": UserRole.ADMIN.value,
+        "password": DEMO_PASSWORD,
+    },
+    {
+        "email": "compliance@contentguard.demo",
+        "full_name": "Elena Rostova (Compliance Officer)",
+        "role": UserRole.COMPLIANCE_OFFICER.value,
         "password": DEMO_PASSWORD,
     },
 ]
@@ -253,6 +268,68 @@ def seed_demo_environment(db=None):
                     rules_json=a.get("rules_json")
                 )
                 db.add(asset_obj)
+
+        # 7. Knowledge Base Documents (Evidence Intelligence Graph)
+        sample_docs = [
+            {
+                "title": "Acme Platform Architecture & Performance Whitepaper 2026",
+                "source_type": "research_report",
+                "file_name": "acme_platform_whitepaper_2026.pdf",
+                "version": "2.1",
+                "validity_date": date(2027, 12, 31),
+                "text": (
+                    "Acme Global Technologies delivers a unified enterprise cloud solution. "
+                    "Production stress benchmarks verify a 35% reduction in latency across all microservices compared to legacy deployments. "
+                    "Our architecture maintains 99.9% uptime availability for all commercial tiers. "
+                    "Internal research confirms measurable productivity improvements when teams adopt automated brand governance workflows."
+                )
+            },
+            {
+                "title": "SOC 2 Type II Security Attestation & Compliance Report",
+                "source_type": "policy",
+                "file_name": "soc2_type_ii_certificate.pdf",
+                "version": "1.0",
+                "validity_date": date(2027, 6, 30),
+                "text": (
+                    "Acme Global Technologies has successfully completed SOC 2 Type II attestation without exceptions. "
+                    "All organizational infrastructure is SOC 2 Type II certified and complies with all global privacy laws. "
+                    "Customer data is encrypted with AES-256 at rest and TLS 1.3 in transit."
+                )
+            }
+        ]
+
+        for sdoc in sample_docs:
+            if not db.query(KnowledgeDocument).filter_by(organization_id=org.id, title=sdoc["title"]).first():
+                doc_id = str(uuid.uuid4())
+                kdoc = KnowledgeDocument(
+                    id=doc_id,
+                    organization_id=org.id,
+                    title=sdoc["title"],
+                    source_type=sdoc["source_type"],
+                    file_name=sdoc["file_name"],
+                    file_size_bytes=len(sdoc["text"].encode("utf-8")),
+                    version=sdoc["version"],
+                    approval_status="approved",
+                    effective_date=date.today(),
+                    validity_date=sdoc["validity_date"],
+                    extracted_text=sdoc["text"],
+                )
+                db.add(kdoc)
+                db.flush()
+
+                chunks = chunk_text(sdoc["text"], chunk_size=200, overlap=40)
+                for c_idx, c_str in enumerate(chunks):
+                    emb = generate_embedding(c_str)
+                    dchunk = DocumentChunk(
+                        id=str(uuid.uuid4()),
+                        document_id=doc_id,
+                        organization_id=org.id,
+                        chunk_index=c_idx,
+                        chunk_text=c_str,
+                        embedding_json=emb,
+                        token_count=len(c_str.split()),
+                    )
+                    db.add(dchunk)
 
         db.commit()
         print("Demo seed completed successfully!")

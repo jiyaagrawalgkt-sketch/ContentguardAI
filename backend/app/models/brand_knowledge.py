@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone, date
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Text, JSON, Float
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -67,6 +67,10 @@ class BrandAsset(Base):
     primary_color_hex = Column(String(7), nullable=True)  # #0B0F19
     secondary_color_hex = Column(String(7), nullable=True)
     accent_color_hex = Column(String(7), nullable=True)
+    neutral_color_hex = Column(String(7), nullable=True)
+    color_palette_json = Column(JSON, nullable=True)  # Array of allowed hex strings
+    logo_hash = Column(String(128), nullable=True)
+    wcag_min_contrast = Column(Float, default=4.5, nullable=False)
     file_path = Column(String(500), nullable=True)
     rules_json = Column(JSON, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)

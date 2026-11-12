@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # Google OAuth / OIDC
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+
     # Storage
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_BYTES: int = 15 * 1024 * 1024  # 15 MB

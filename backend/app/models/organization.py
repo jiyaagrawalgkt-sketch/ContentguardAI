@@ -23,3 +23,4 @@ class Organization(Base):
     brand_assets = relationship("BrandAsset", back_populates="organization", cascade="all, delete-orphan")
     submissions = relationship("ContentSubmission", back_populates="organization", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="organization", cascade="all, delete-orphan")
+    knowledge_documents = relationship("KnowledgeDocument", back_populates="organization", cascade="all, delete-orphan")
