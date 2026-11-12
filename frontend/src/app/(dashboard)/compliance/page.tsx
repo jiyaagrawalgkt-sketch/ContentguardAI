@@ -126,6 +126,29 @@ export default function CompliancePortalPage() {
     fetchComplianceData();
   }, []);
 
+  if (user && user.role !== "compliance_officer" && user.role !== "admin") {
+    return (
+      <div className="min-h-screen bg-lavender-50 flex flex-col">
+        <AppNavbar />
+        <main className="flex-1 max-w-md w-full mx-auto p-8 flex flex-col justify-center items-center text-center">
+          <div className="p-8 bg-white rounded-3xl border border-rose-200 shadow-card">
+            <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-midnight-950 mb-2">Compliance Portal Restricted</h2>
+            <p className="text-xs text-midnight-600 mb-6 leading-relaxed">
+              Your account is registered with the <strong>{user.role}</strong> role. Only Compliance Officers and Administrators have authorization to audit regulatory claims and inspect cryptographic audit trails.
+            </p>
+            <a
+              href="/creator"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-midnight-900 hover:bg-midnight-800 transition-all shadow-md"
+            >
+              <span>Return to Creator Studio</span>
+            </a>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const handleCertifyClaim = async (claimId: string, decision: "supported" | "rejected") => {
     setCertifyingId(claimId);
     try {

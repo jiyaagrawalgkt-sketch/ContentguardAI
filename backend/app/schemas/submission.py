@@ -101,5 +101,7 @@ class SubmissionOut(BaseModel):
     creator_name: Optional[str] = None
     versions: List[VersionOut] = []
     latest_report: Optional[ReportOut] = None
+    latest_review_feedback: Optional[str] = None
+    latest_reviewer_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime

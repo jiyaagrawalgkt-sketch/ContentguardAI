@@ -76,6 +76,125 @@ def get_brand_knowledge_summary(
 
 
 # -------------------------------------------------------------
+# Admin Management Endpoints for Guidelines, Facts & Terms
+# -------------------------------------------------------------
+@router.post("/guidelines", status_code=status.HTTP_201_CREATED, summary="Create Brand Guideline")
+def create_brand_guideline(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    guideline = BrandGuideline(
+        id=str(uuid.uuid4()),
+        organization_id=current_user.organization_id,
+        category=payload.get("category", "tone_voice"),
+        title=payload.get("title", "Brand Guideline"),
+        description=payload.get("description", ""),
+        rules=payload.get("rules", []),
+        severity_level=payload.get("severity_level", "medium"),
+        is_active=True
+    )
+    db.add(guideline)
+    db.commit()
+    db.refresh(guideline)
+    return {"id": guideline.id, "title": guideline.title, "message": "Guideline created successfully."}
+
+
+@router.delete("/guidelines/{guideline_id}", summary="Delete Brand Guideline")
+def delete_brand_guideline(
+    guideline_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    g = db.query(BrandGuideline).filter(
+        BrandGuideline.id == guideline_id,
+        BrandGuideline.organization_id == current_user.organization_id
+    ).first()
+    if not g:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guideline not found")
+    db.delete(g)
+    db.commit()
+    return {"message": "Guideline deleted successfully."}
+
+
+@router.post("/facts", status_code=status.HTTP_201_CREATED, summary="Create Approved Fact")
+def create_approved_fact(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    fact = ApprovedFact(
+        id=str(uuid.uuid4()),
+        organization_id=current_user.organization_id,
+        topic=payload.get("topic", "Company Fact"),
+        statement=payload.get("statement", ""),
+        verified_numbers=payload.get("verified_numbers", {}),
+        reference_url_or_doc=payload.get("reference_url_or_doc", ""),
+        is_active=True
+    )
+    db.add(fact)
+    db.commit()
+    db.refresh(fact)
+    return {"id": fact.id, "statement": fact.statement, "message": "Fact registered successfully."}
+
+
+@router.delete("/facts/{fact_id}", summary="Delete Approved Fact")
+def delete_approved_fact(
+    fact_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    f = db.query(ApprovedFact).filter(
+        ApprovedFact.id == fact_id,
+        ApprovedFact.organization_id == current_user.organization_id
+    ).first()
+    if not f:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approved fact not found")
+    db.delete(f)
+    db.commit()
+    return {"message": "Fact deleted successfully."}
+
+
+@router.post("/terms", status_code=status.HTTP_201_CREATED, summary="Create Restricted Term")
+def create_restricted_term(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    term = RestrictedTerm(
+        id=str(uuid.uuid4()),
+        organization_id=current_user.organization_id,
+        term=payload.get("term", ""),
+        category=payload.get("category", "unverified_superlative"),
+        severity=payload.get("severity", "high"),
+        suggested_alternative=payload.get("suggested_alternative", ""),
+        reason=payload.get("reason", "Violates brand communication policy"),
+        is_active=True
+    )
+    db.add(term)
+    db.commit()
+    db.refresh(term)
+    return {"id": term.id, "term": term.term, "message": "Restricted term saved successfully."}
+
+
+@router.delete("/terms/{term_id}", summary="Delete Restricted Term")
+def delete_restricted_term(
+    term_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    t = db.query(RestrictedTerm).filter(
+        RestrictedTerm.id == term_id,
+        RestrictedTerm.organization_id == current_user.organization_id
+    ).first()
+    if not t:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restricted term not found")
+    db.delete(t)
+    db.commit()
+    return {"message": "Restricted term deleted successfully."}
+
+
+# -------------------------------------------------------------
 # Brand Asset Library Endpoints (Multimodal Brand Intelligence)
 # -------------------------------------------------------------
 @router.get("/assets", summary="List Organization Brand Assets")
@@ -176,3 +295,20 @@ def create_or_update_brand_asset(
         "secondary_color_hex": target.secondary_color_hex,
         "message": f"Brand asset '{target.name}' updated successfully."
     }
+
+
+@router.delete("/assets/{asset_id}", summary="Delete Brand Asset")
+def delete_brand_asset(
+    asset_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    a = db.query(BrandAsset).filter(
+        BrandAsset.id == asset_id,
+        BrandAsset.organization_id == current_user.organization_id
+    ).first()
+    if not a:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand asset not found")
+    db.delete(a)
+    db.commit()
+    return {"message": "Brand asset deleted successfully."}

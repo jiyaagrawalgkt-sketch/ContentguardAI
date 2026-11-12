@@ -172,3 +172,27 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Pytest suite: **55 / 55 tests passing in 14.6s** (Zero-Trust Governance, Evidence Intelligence, Multimodal Intelligence, Auth, Admin CRUD, Multi-User Isolation, Dynamic Analysis).
     - Next.js production build: **100% clean compilation** across all 12 routes (`/`, `/admin`, `/compliance`, `/creator`, `/creator/[id]`, `/creator/new`, `/knowledge-base`, `/login`, `/preview/[token]`, `/register`, `/reviewer`, `/reviewer/[id]`).
 
+- [x] **Milestone 11: Product Stability, Unified Authentication, Knowledge Hub Redesign & Real Evidence Graph**
+  - [x] **Single Unified Login Experience**:
+    - Replaced the cluttered multi-button login screen with a focused email/password form.
+    - Pre-seeded Hackathon Demo credentials (`demo@contentguard.ai` / `Demo@12345`) featured in a callout card with 1-click "Auto-Fill Credentials" and "Enter Demo Workspace" that authenticates directly through the backend `/api/v1/auth/login` endpoint.
+    - Removed confusing third-party Google modals and simulated fake tokens.
+    - Clean error handling (distinguishing 401 wrong password, 403 deactivated, and 500 network errors).
+  - [x] **Eliminated 401 Unauthorized / 403 Forbidden Root Causes**:
+    - Removed fake judge sandbox tokens in `AuthContext.tsx` that previously generated unverified JWTs and broke downstream API calls.
+    - Added auto-seed check in `POST /auth/login` so demo accounts authenticate with genuine cryptographic JWTs even on cold-started databases.
+    - Added role-tailored permissions and client-side guards on `/reviewer` and `/compliance`.
+  - [x] **Comprehensive Knowledge Hub Redesign (`/knowledge-base`)**:
+    - Upgraded from simple file list to a 5-tab organizational knowledge management system: Evidence Source Documents, Brand Guidelines, Approved Facts, Restricted Terms, and Brand Assets.
+    - Role-aware: Administrators can ingest documents, add guidelines, register facts, and record restricted terms; Creators and Reviewers browse in read-only Reference Vault mode.
+    - Added document chunk passage inspector modal.
+  - [x] **Interactive Evidence Intelligence Graph (`EvidenceGraph.tsx`)**:
+    - Replaced static 3-item box with a full SVG node-link topology graph: Content Draft $\rightarrow$ Extracted Claims $\rightarrow$ Evidence Citations $\rightarrow$ Verification Verdict.
+    - Clickable nodes with interactive Evidence Citation Inspector drawer showing confidence score, cited passage, and suggested remediation.
+    - Interactive controls: Zoom In, Zoom Out, and Reset zoom controls.
+    - Status filtering (`all`, `supported`, `unsupported`, `conflicting`, `outdated`).
+  - [x] **End-to-End SaaS Workflow & Verification**:
+    - Created `backend/tests/test_complete_saas_workflow.py` validating the entire lifecycle (Seed $\rightarrow$ Login $\rightarrow$ Submit $\rightarrow$ Analyze $\rightarrow$ Evidence Verify $\rightarrow$ Version Update $\rightarrow$ Review Queue $\rightarrow$ Approval $\rightarrow$ Public Certification).
+    - Verified all 56 backend tests passing (100% success).
+    - Verified Next.js production build compiling all 12 routes with zero errors.
+

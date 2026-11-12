@@ -86,6 +86,10 @@ def _format_submission_out(submission: ContentSubmission) -> SubmissionOut:
     if submission.analysis_reports:
         latest_report = sorted(submission.analysis_reports, key=lambda r: r.created_at)[-1]
 
+    latest_review = None
+    if submission.approval_records:
+        latest_review = sorted(submission.approval_records, key=lambda r: r.created_at)[-1]
+
     return SubmissionOut(
         id=submission.id,
         title=submission.title,
@@ -109,6 +113,8 @@ def _format_submission_out(submission: ContentSubmission) -> SubmissionOut:
             for v in submission.versions
         ],
         latest_report=_format_report_out(latest_report),
+        latest_review_feedback=latest_review.feedback_reason if latest_review else None,
+        latest_reviewer_name=latest_review.reviewer.full_name if (latest_review and latest_review.reviewer) else None,
         created_at=submission.created_at,
         updated_at=submission.updated_at,
     )

@@ -416,6 +416,33 @@ export default function CorrectionWorkspacePage() {
           </div>
         )}
 
+        {/* Reviewer Feedback & Changes Requested Banner */}
+        {submission?.status === "changes_requested" && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-orange-50 via-white to-amber-50 border-2 border-orange-300 shadow-sm flex items-start gap-3 text-xs">
+            <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-orange-950 uppercase tracking-wide">
+                  Reviewer Feedback — Changes Requested
+                </span>
+                {submission.latest_reviewer_name && (
+                  <span className="text-[11px] text-orange-700 font-semibold">
+                    • Reviewed by {submission.latest_reviewer_name}
+                  </span>
+                )}
+              </div>
+              <p className="text-orange-900 bg-white/80 p-2.5 rounded-xl border border-orange-200/80 font-mono text-[11px] leading-relaxed">
+                "{submission.latest_review_feedback || "Please revise flagged compliance issues and update the copy before requesting approval."}"
+              </p>
+              <p className="text-[11px] text-orange-700 pt-0.5">
+                Apply the fixes below or edit the editor text directly. When done, click <strong>"Submit for Review"</strong> to return this draft to the reviewer station.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Workspace Feature Mode Selector (Round 3) */}
         <div className="mb-6 flex flex-wrap items-center gap-2 p-1 rounded-2xl bg-white border border-midnight-200/80 shadow-sm w-fit">
           <button

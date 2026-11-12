@@ -228,6 +228,8 @@ export interface ContentSubmission {
   creator_name?: string;
   versions?: ContentVersion[];
   latest_report?: AnalysisReport;
+  latest_review_feedback?: string;
+  latest_reviewer_name?: string;
   created_at: string;
   updated_at: string;
 }
