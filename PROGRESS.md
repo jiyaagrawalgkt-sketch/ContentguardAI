@@ -537,6 +537,43 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
    - Entire Backend Pytest Suite: **108 / 108 tests passing in 50.20s (100% success rate)**.
    - Frontend TypeScript: **0 errors**.
 
+---
+
+## Milestone 20: Universal Poster Visual Intelligence & Non-Destructive Multi-Element Correction
+
+### Problem Statement & Root Cause Analysis
+1. **Enterprise Launch Poster (`media_1794587217252_209baf81.jpg`)**:
+   - *Failure*: When poster body copy mentioned "Linkedin", `verify_logo_integrity` fell back to `target_candidate = logo_candidates[0]`, misidentifying the primary text block as a "distorted LinkedIn logo". Clicking Apply Fix erased the poster and pasted a giant blue box.
+   - *Root Cause*: Over-eager brand keyword association from OCR text without verifying if the candidate possessed brand colors, was a container card, or sat in an isolated logo zone.
+2. **LG Display Banner (`media_1794587167252_3243ef3a.jpg`)**:
+   - *Failure*: Circular 120x120 LG emblem was lumped together with text into a 2.08:1 composite box. During Apply Fix, canvas padding ran first, shifting unpadded coordinates and causing inpainting of a grey box over the artwork.
+   - *Root Cause*: Lack of whitespace interval clustering between adjacent elements in scan zones, and incorrect execution order of canvas standardization vs. local logo inpainting.
+3. **Apple Certified Card (`media_1794587030751_a5894e1b.jpg`)**:
+   - *Failure*: Duplicate verification check rows appeared in the post-correction card (e.g. `Canonical Proportions & Distortion Check` rendered twice).
+   - *Root Cause*: Multiple entries in accepted logo issues generated separate check objects with identical names without deduplication.
+
+### Architecture & Engine Upgrades
+1. **Strict Logo Candidate Validation (`verify_logo_integrity`)**:
+   - Removed arbitrary fallback to `logo_candidates[0]` when brand words appear in OCR copy.
+   - Candidates are only matched if they match official brand colors ($\le 40.0$), reside inside an isolated container card, or are positioned in designated logo zones ($\le 40\%$ width, $\le 35\%$ height).
+   - Text mentions trigger text casing/trademark warnings, NEVER logo distortion violations or canvas replacements.
+2. **Multi-Element Zone Clustering & Stripe Boundary Detection (`detect_visual_elements_and_regions`)**:
+   - Implemented vertical gap clustering ($\ge 12\text{px}$ whitespace interval segmentation) inside scan zones, isolating individual visual emblems (e.g., circular 120x120 LG mark) from neighboring headline text.
+   - Reinforced `is_floating_card` to require 4-edge canvas border margins ($\ge 3\%$), preventing full-width banner stripes from being misclassified as floating container cards.
+3. **Non-Destructive Coordinate Execution Order (`generate_corrected_visual_asset`)**:
+   - Reordered pipeline operations: surgical logo replacement runs FIRST on original unpadded coordinates, followed by contrast enhancement and safe margin inset. Canvas aspect ratio standardization (letterbox/pillarbox padding) runs LAST.
+   - Guaranteed zero coordinate shifting or grey box artifact overlays.
+4. **Deduplication of Post-Correction Audit Checklist (`verify_corrected_visual_asset`)**:
+   - Added strict check name deduplication before returning verification results, ensuring each check row appears exactly once in the UI checklist.
+
+### Verification & Test Suite Status
+- `backend/tests/test_universal_logo_replacement.py`: **14 / 14 tests passing**.
+- `backend/tests/test_multimodal_comprehensive_cases.py`: **7 / 7 tests passing**.
+- Entire Backend Pytest Suite: **108 / 108 tests passing in 39.13s (100% pass rate)**.
+- Frontend TypeScript Build Check: **0 errors**.
+- Git Working Tree: `backend/app/engine/multimodal_engine.py` and `PROGRESS.md` modified (NOT committed, awaiting user check and confirmation).
+
+
 
 
 

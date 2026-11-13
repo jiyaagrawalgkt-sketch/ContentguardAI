@@ -1025,7 +1025,7 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
     img_rgb = image.convert("RGB")
     w, h = img_rgb.size
 
-    # Sample canvas background color from corners and borders
+    # Sample canvas background color from 4 corners
     corners = [
         img_rgb.getpixel((0, 0)),
         img_rgb.getpixel((w - 1, 0)),
@@ -1057,8 +1057,16 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
             inset_y = max(4, int(ch_box * 0.12))
 
             has_inner_subject = False
-            # Check if cropped_elem is a container card (e.g. rounded white card on blue background)
-            if cw_box > 32 and ch_box > 32:
+            # Check if cropped_elem is a floating container card (e.g. rounded white card on blue background)
+            # Must be inset from all 4 borders to be a floating card, not an edge-to-edge banner stripe
+            is_floating_card = (
+                gx1 >= max(8, int(w * 0.03)) and
+                gy1 >= max(8, int(h * 0.03)) and
+                gx2 <= w - max(8, int(w * 0.03)) and
+                gy2 <= h - max(8, int(h * 0.03)) and
+                cw_box > 32 and ch_box > 32
+            )
+            if is_floating_card:
                 card_corners = [
                     cropped_elem.getpixel((inset_x, inset_y)),
                     cropped_elem.getpixel((cw_box - inset_x, inset_y)),
@@ -1124,44 +1132,51 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
                                 }
                             })
 
-            if not has_inner_subject:
-                stat = ImageStat.Stat(cropped_elem)
-                mean_rgb = tuple(int(m) for m in stat.mean[:3])
-                elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
-                canvas_bg_rgb = (bg_r, bg_g, bg_b)
-                top_color_hex = None
-                top_color_rgb = None
-                for c_cand in elem_dom:
-                    if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
-                        top_color_hex = c_cand["hex"]
-                        top_color_rgb = c_cand["rgb"]
-                        break
-                if not top_color_hex:
-                    top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
-                    top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
-                aspect_ratio = round(gw / max(1, gh), 2)
-                detected_elements.append({
-                    "zone": "primary_asset",
-                    "box_px": (gx1, gy1, gx2, gy2),
-                    "region": {
-                        "x": round((gx1 / w) * 100.0, 1),
-                        "y": round((gy1 / h) * 100.0, 1),
-                        "width": round((gw / w) * 100.0, 1),
-                        "height": round((gh / h) * 100.0, 1)
-                    },
-                    "pixel_width": gw,
-                    "pixel_height": gh,
-                    "aspect_ratio": aspect_ratio,
-                    "dominant_hex": top_color_hex,
-                    "dominant_rgb": top_color_rgb,
-                    "canvas_bg_rgb": (bg_r, bg_g, bg_b),
-                    "is_primary_asset": True,
-                })
+            # Standalone primary hero artwork / large logo mark (e.g. Red LinkedIn logo test box)
+            # Exclude full canvas, edge-to-edge banner stripes, or multi-element layouts separated by massive vertical gaps
+            if not has_inner_subject and (area_coverage > 0.40 and (gw < w * 0.95 and gh < h * 0.95)):
+                cropped_diff_g = diff.crop(global_bbox)
+                pix_g = _extract_image_pixel_list(cropped_diff_g)
+                row_cg = [sum(pix_g[y * gw + x] for x in range(gw)) for y in range(gh)]
+                has_massive_vertical_gap = any(all(row_cg[y + i] == 0 for i in range(20)) for y in range(len(row_cg) - 20))
+                if not has_massive_vertical_gap:
+                    stat = ImageStat.Stat(cropped_elem)
+                    mean_rgb = tuple(int(m) for m in stat.mean[:3])
+                    elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
+                    canvas_bg_rgb = (bg_r, bg_g, bg_b)
+                    top_color_hex = None
+                    top_color_rgb = None
+                    for c_cand in elem_dom:
+                        if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
+                            top_color_hex = c_cand["hex"]
+                            top_color_rgb = c_cand["rgb"]
+                            break
+                    if not top_color_hex:
+                        top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
+                        top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
+                    aspect_ratio = round(gw / max(1, gh), 2)
+                    detected_elements.append({
+                        "zone": "primary_asset",
+                        "box_px": (gx1, gy1, gx2, gy2),
+                        "region": {
+                            "x": round((gx1 / w) * 100.0, 1),
+                            "y": round((gy1 / h) * 100.0, 1),
+                            "width": round((gw / w) * 100.0, 1),
+                            "height": round((gh / h) * 100.0, 1)
+                        },
+                        "pixel_width": gw,
+                        "pixel_height": gh,
+                        "aspect_ratio": aspect_ratio,
+                        "dominant_hex": top_color_hex,
+                        "dominant_rgb": top_color_rgb,
+                        "canvas_bg_rgb": (bg_r, bg_g, bg_b),
+                        "is_primary_asset": True,
+                    })
 
     zones = [
-        ("top_left", (0, 0, int(w * 0.45), int(h * 0.30))),
-        ("top_right", (int(w * 0.55), 0, w, int(h * 0.30))),
-        ("center", (int(w * 0.05), int(h * 0.25), int(w * 0.95), int(h * 0.75))),
+        ("top_left", (0, 0, int(w * 0.45), int(h * 0.40))),
+        ("top_right", (int(w * 0.55), 0, w, int(h * 0.40))),
+        ("center", (int(w * 0.05), int(h * 0.10), int(w * 0.95), int(h * 0.90))),
         ("bottom", (int(w * 0.05), int(h * 0.75), int(w * 0.95), h)),
     ]
 
@@ -1184,42 +1199,111 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
         if ew < 8 or eh < 8:
             continue
 
-        cropped_elem = img_rgb.crop((gx1, gy1, gx2, gy2))
-        stat = ImageStat.Stat(cropped_elem)
-        mean_rgb = tuple(int(m) for m in stat.mean[:3])
+        # Check if this zone contains distinct sub-elements separated by whitespace gaps (e.g. logo emblem on left, text on right)
+        cropped_crop = cropped_diff.crop((local_x1, local_y1, local_x2, local_y2))
+        sub_w, sub_h = cropped_crop.size
+        pix = _extract_image_pixel_list(cropped_crop)
+        col_c = [sum(pix[y * sub_w + x] for y in range(sub_h)) for x in range(sub_w)]
 
-        # Get dominant foreground color inside this region (prefer non-canvas color)
-        elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
-        canvas_bg_rgb = (bg_r, bg_g, bg_b)
-        top_color_hex = None
-        top_color_rgb = None
-        for c_cand in elem_dom:
-            if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
-                top_color_hex = c_cand["hex"]
-                top_color_rgb = c_cand["rgb"]
-                break
-        if not top_color_hex:
-            top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
-            top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
+        intervals = []
+        in_int = False
+        start_x = 0
+        for x, cnt in enumerate(col_c):
+            if cnt > 0 and not in_int:
+                in_int = True
+                start_x = x
+            elif cnt == 0 and in_int:
+                in_int = False
+                if x - start_x >= 12:
+                    intervals.append((start_x, x))
+        if in_int and (sub_w - start_x >= 12):
+            intervals.append((start_x, sub_w))
 
-        aspect_ratio = round(ew / max(1, eh), 2)
-        x_pct = round((gx1 / w) * 100.0, 1)
-        y_pct = round((gy1 / h) * 100.0, 1)
-        w_pct = round((ew / w) * 100.0, 1)
-        h_pct = round((eh / h) * 100.0, 1)
+        if len(intervals) >= 2 and any(ie - is_ >= 20 for is_, ie in intervals):
+            for is_, ie in intervals:
+                sub_diff = cropped_crop.crop((is_, 0, ie, sub_h))
+                s_bbox = sub_diff.getbbox()
+                if not s_bbox:
+                    continue
+                sx1, sy1, sx2, sy2 = s_bbox
+                abs_x1 = gx1 + is_ + sx1
+                abs_y1 = gy1 + sy1
+                abs_x2 = gx1 + is_ + sx2
+                abs_y2 = gy1 + sy2
+                sub_ew = max(1, abs_x2 - abs_x1)
+                sub_eh = max(1, abs_y2 - abs_y1)
+                if sub_ew < 8 or sub_eh < 8:
+                    continue
+                sub_elem_img = img_rgb.crop((abs_x1, abs_y1, abs_x2, abs_y2))
+                s_stat = ImageStat.Stat(sub_elem_img)
+                s_mean = tuple(int(m) for m in s_stat.mean[:3])
+                s_dom = extract_dominant_colors(sub_elem_img, max_colors=4)
+                top_hex = None
+                top_rgb = None
+                for c_cand in s_dom:
+                    if color_distance_euclidean(c_cand["rgb"], (bg_r, bg_g, bg_b)) > 28.0:
+                        top_hex = c_cand["hex"]
+                        top_rgb = c_cand["rgb"]
+                        break
+                if not top_hex:
+                    top_hex = s_dom[0]["hex"] if s_dom else rgb_to_hex(*s_mean)
+                    top_rgb = s_dom[0]["rgb"] if s_dom else list(s_mean)
+                sub_aspect = round(sub_ew / max(1, sub_eh), 2)
 
-        detected_elements.append({
-            "zone": zone_name,
-            "box_px": (gx1, gy1, gx2, gy2),
-            "region": {"x": x_pct, "y": y_pct, "width": w_pct, "height": h_pct},
-            "pixel_width": ew,
-            "pixel_height": eh,
-            "aspect_ratio": aspect_ratio,
-            "dominant_hex": top_color_hex,
-            "dominant_rgb": top_color_rgb,
-            "canvas_bg_rgb": (bg_r, bg_g, bg_b),
-            "is_primary_asset": False,
-        })
+                detected_elements.append({
+                    "zone": zone_name,
+                    "box_px": (abs_x1, abs_y1, abs_x2, abs_y2),
+                    "region": {
+                        "x": round((abs_x1 / w) * 100.0, 1),
+                        "y": round((abs_y1 / h) * 100.0, 1),
+                        "width": round((sub_ew / w) * 100.0, 1),
+                        "height": round((sub_eh / h) * 100.0, 1)
+                    },
+                    "pixel_width": sub_ew,
+                    "pixel_height": sub_eh,
+                    "aspect_ratio": sub_aspect,
+                    "dominant_hex": top_hex,
+                    "dominant_rgb": top_rgb,
+                    "canvas_bg_rgb": (bg_r, bg_g, bg_b),
+                    "is_primary_asset": False,
+                })
+        else:
+            cropped_elem = img_rgb.crop((gx1, gy1, gx2, gy2))
+            stat = ImageStat.Stat(cropped_elem)
+            mean_rgb = tuple(int(m) for m in stat.mean[:3])
+
+            # Get dominant foreground color inside this region (prefer non-canvas color)
+            elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
+            canvas_bg_rgb = (bg_r, bg_g, bg_b)
+            top_color_hex = None
+            top_color_rgb = None
+            for c_cand in elem_dom:
+                if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
+                    top_color_hex = c_cand["hex"]
+                    top_color_rgb = c_cand["rgb"]
+                    break
+            if not top_color_hex:
+                top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
+                top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
+
+            aspect_ratio = round(ew / max(1, eh), 2)
+            x_pct = round((gx1 / w) * 100.0, 1)
+            y_pct = round((gy1 / h) * 100.0, 1)
+            w_pct = round((ew / w) * 100.0, 1)
+            h_pct = round((eh / h) * 100.0, 1)
+
+            detected_elements.append({
+                "zone": zone_name,
+                "box_px": (gx1, gy1, gx2, gy2),
+                "region": {"x": x_pct, "y": y_pct, "width": w_pct, "height": h_pct},
+                "pixel_width": ew,
+                "pixel_height": eh,
+                "aspect_ratio": aspect_ratio,
+                "dominant_hex": top_color_hex,
+                "dominant_rgb": top_color_rgb,
+                "canvas_bg_rgb": (bg_r, bg_g, bg_b),
+                "is_primary_asset": False,
+            })
 
     return detected_elements
 
@@ -1266,22 +1350,49 @@ def verify_logo_integrity(
             aliases.extend(["pepsi-cola", "pepsico"])
         pattern = r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b"
         if re.search(pattern, norm_text):
-            matched_brand_key = b_key
-            matched_brand_info = b_info
-            # Match candidate by color if possible
+            primary_colors = [c for c in b_info["canonical_colors"] if c.get("is_primary", False)]
+            if not primary_colors:
+                primary_colors = [b_info["canonical_colors"][0]]
+
+            # Match candidate by primary brand color
             for cand in logo_candidates:
                 cand_rgb = tuple(cand["dominant_rgb"])
-                for canon in b_info["canonical_colors"]:
+                for canon in primary_colors:
                     dist = color_distance_euclidean(cand_rgb, canon["rgb"])
                     if dist <= canon.get("tolerance", 40.0):
                         target_candidate = cand
+                        matched_brand_key = b_key
+                        matched_brand_info = b_info
                         break
                 if target_candidate:
                     break
-            # If no candidate matched brand colors, take primary or first candidate
-            if not target_candidate and logo_candidates:
-                target_candidate = logo_candidates[0]
-            break
+
+            # If no candidate matched brand color, check if there's a standalone logo asset, container card, or compact header mark
+            if not target_candidate:
+                for cand in logo_candidates:
+                    if cand.get("container_card"):
+                        target_candidate = cand
+                        matched_brand_key = b_key
+                        matched_brand_info = b_info
+                        break
+                    if cand.get("is_primary_asset"):
+                        word_count = len(norm_text.split())
+                        cand_ratio = cand["aspect_ratio"]
+                        canon_ratio = b_info.get("canonical_aspect_ratio", 1.0)
+                        ratio_diff = abs(cand_ratio - canon_ratio) / canon_ratio
+                        if word_count <= 6 or ratio_diff <= 0.25:
+                            target_candidate = cand
+                            matched_brand_key = b_key
+                            matched_brand_info = b_info
+                            break
+                    if cand.get("zone") in ["top_left", "top_right"]:
+                        if cand["region"]["width"] <= 40.0 and cand["region"]["height"] <= 35.0:
+                            target_candidate = cand
+                            matched_brand_key = b_key
+                            matched_brand_info = b_info
+                            break
+            if matched_brand_key:
+                break
 
     # Step 1B: If no brand mentioned in text, match candidate by signature primary color with tight tolerance
     if not matched_brand_key:
@@ -1303,14 +1414,11 @@ def verify_logo_integrity(
             if matched_brand_key:
                 break
 
-    if matched_brand_key and matched_brand_info:
+    if matched_brand_key and matched_brand_info and target_candidate:
         brand_key = matched_brand_key
         brand_info = matched_brand_info
         detected_brand_name = brand_info["brand_name"]
         overall_logo_status = LogoMatchStatus.MATCHED.value
-
-        if not target_candidate and logo_candidates:
-            target_candidate = logo_candidates[0]
 
         if target_candidate:
             reg = target_candidate["region"]
@@ -1451,11 +1559,16 @@ def verify_logo_integrity(
                 })
 
     # 3. Check for Unknown / Unverified Brand Marks
-    # If a prominent corner element exists but matches neither global registry nor organization assets
+    # If a prominent corner element or hero asset exists but matches neither global registry nor organization assets
     if not detected_brand_name and logo_candidates:
         first_cand = logo_candidates[0]
-        # If it's compact and icon-shaped (ratio between 0.6 and 1.8)
-        if 0.6 <= first_cand["aspect_ratio"] <= 1.8 and first_cand["pixel_height"] > 24:
+        # Only if it's a genuine standalone hero asset or compact corner emblem (not a full-width header/bar)
+        is_candidate_emblem = (
+            first_cand.get("is_primary_asset") or
+            first_cand.get("container_card") or
+            (first_cand["pixel_width"] <= 180 and first_cand["pixel_height"] <= 180 and 0.6 <= first_cand["aspect_ratio"] <= 1.8)
+        )
+        if is_candidate_emblem and first_cand["pixel_height"] > 24:
             findings.append({
                 "id": "vis-logo-unverified",
                 "category": "logo_integrity",
@@ -1685,6 +1798,15 @@ def verify_layout_and_spacing(
             continue
 
         reg = elem["region"]
+        is_edge_band = (
+            (reg["x"] <= 1.0 and reg["width"] >= 40.0) or  # horizontal banner stripe or header
+            (reg["y"] <= 1.0 and reg["height"] >= 40.0) or # vertical border band
+            (reg["x"] + reg["width"] >= 99.0 and reg["width"] >= 40.0) or
+            (reg["y"] + reg["height"] >= 99.0 and reg["height"] >= 40.0)
+        )
+        if is_edge_band:
+            continue
+
         d_edge = min(reg["x"], reg["y"], 100.0 - (reg["x"] + reg["width"]), 100.0 - (reg["y"] + reg["height"]))
         if d_edge < 1.5 and elem["pixel_height"] > 16:
             findings.append({
@@ -2006,41 +2128,7 @@ def generate_corrected_visual_asset(
         for k in ["logo", "brand_palette", "replacement", "distortion", "recolor", "modified_logo_color", "vis-logo"]
     )
 
-    # 1. Canvas Aspect Ratio Standardization (Non-Destructive)
-    if fix_aspect_ratio:
-        current_ratio = w / max(1, h)
-        if current_ratio > 1.4:
-            # Wide banner format (e.g. 2.79:1): standardize to 16:9 landscape (1.778:1)
-            target_ratio = 16.0 / 9.0
-            target_w = w
-            target_h = max(h, int(w / target_ratio))
-        elif current_ratio < 0.75:
-            # Tall vertical format: standardize to 4:5 portrait (0.8:1) or 9:16
-            target_ratio = 4.0 / 5.0
-            target_h = h
-            target_w = max(w, int(h * target_ratio))
-        else:
-            # Near-square format: standardize to 1:1
-            side = max(w, h)
-            target_w, target_h = side, side
-
-        if target_w != w or target_h != h:
-            # Sample edge pixels for seamless letterbox background padding
-            top_samples = [img.getpixel((px, 0)) for px in range(0, w, max(1, w // 20))]
-            bot_samples = [img.getpixel((px, h - 1)) for px in range(0, w, max(1, w // 20))]
-            edge_samples = top_samples + bot_samples
-            pad_r = int(sum(c[0] for c in edge_samples) / len(edge_samples))
-            pad_g = int(sum(c[1] for c in edge_samples) / len(edge_samples))
-            pad_b = int(sum(c[2] for c in edge_samples) / len(edge_samples))
-
-            new_canvas = Image.new("RGBA", (target_w, target_h), (pad_r, pad_g, pad_b, 255))
-            paste_x = (target_w - w) // 2
-            paste_y = (target_h - h) // 2
-            new_canvas.paste(img, (paste_x, paste_y), img)
-            img = new_canvas
-            w, h = target_w, target_h
-
-    # 2. Surgical Local Logo Replacement (Non-Destructive)
+    # 1. Surgical Local Logo Replacement (Non-Destructive) - Runs FIRST on original canvas coordinates
     if fix_logo:
         all_logo_issues = [
             iss for iss in (visual_issues or [])
@@ -2134,15 +2222,15 @@ def generate_corrected_visual_asset(
                 dest_y = ry1 + (rh - fit_h) // 2
                 img.paste(official_mark, (dest_x, dest_y), official_mark)
 
-    # 3. Optical Contrast & Legibility Enhancement
+    # 2. Optical Contrast & Legibility Enhancement
     if fix_contrast:
         enhancer = ImageEnhance.Contrast(img.convert("RGB"))
         enhanced = enhancer.enhance(1.25)
         brightener = ImageEnhance.Brightness(enhanced)
         img = brightener.enhance(1.04).convert("RGBA")
 
-    # 4. Safe Margin Adjustment
-    if fix_margin:
+    # 3. Safe Margin Adjustment
+    if fix_margin and not fix_aspect_ratio:
         pad_x = max(8, int(w * 0.04))
         pad_y = max(8, int(h * 0.04))
         top_edge = [img.getpixel((x, 0)) for x in range(0, w, max(1, w // 20))]
@@ -2157,6 +2245,40 @@ def generate_corrected_visual_asset(
         resized_inner = img.resize((w - (pad_x * 2), h - (pad_y * 2)), Image.Resampling.LANCZOS)
         framed.paste(resized_inner, (pad_x, pad_y), resized_inner)
         img = framed
+
+    # 4. Canvas Aspect Ratio Standardization (Non-Destructive) - Runs LAST with outer padding
+    if fix_aspect_ratio:
+        current_ratio = w / max(1, h)
+        if current_ratio > 1.4:
+            # Wide banner format (e.g. 2.79:1): standardize to 16:9 landscape (1.778:1)
+            target_ratio = 16.0 / 9.0
+            target_w = w
+            target_h = max(h, int(w / target_ratio))
+        elif current_ratio < 0.75:
+            # Tall vertical format: standardize to 4:5 portrait (0.8:1) or 9:16
+            target_ratio = 4.0 / 5.0
+            target_h = h
+            target_w = max(w, int(h * target_ratio))
+        else:
+            # Near-square format: standardize to 1:1
+            side = max(w, h)
+            target_w, target_h = side, side
+
+        if target_w != w or target_h != h:
+            # Sample edge pixels for seamless letterbox background padding
+            top_samples = [img.getpixel((px, 0)) for px in range(0, w, max(1, w // 20))]
+            bot_samples = [img.getpixel((px, h - 1)) for px in range(0, w, max(1, w // 20))]
+            edge_samples = top_samples + bot_samples
+            pad_r = int(sum(c[0] for c in edge_samples) / len(edge_samples))
+            pad_g = int(sum(c[1] for c in edge_samples) / len(edge_samples))
+            pad_b = int(sum(c[2] for c in edge_samples) / len(edge_samples))
+
+            new_canvas = Image.new("RGBA", (target_w, target_h), (pad_r, pad_g, pad_b, 255))
+            paste_x = (target_w - w) // 2
+            paste_y = (target_h - h) // 2
+            new_canvas.paste(img, (paste_x, paste_y), img)
+            img = new_canvas
+            w, h = target_w, target_h
 
     final_img = img.convert("RGB")
     final_img.save(output_path, "PNG", quality=95)
@@ -2372,11 +2494,12 @@ def verify_corrected_visual_asset(
     # 4. Specific Accepted Issue Resolution Checks
     logo_issues = [
         iss for iss in visual_issues
-        if iss.get("category") in ["logo_integrity", "brand_palette"] or "logo" in iss.get("type", "") or "color" in iss.get("type", "")
+        if (iss.get("category") == "logo_integrity" and iss.get("type") in ["logo_distortion", "modified_logo_color", "logo_replacement", "off_brand_logo_color", "unapproved_logo_variant"])
+        or (iss.get("brand_key") and "logo" in str(iss.get("type", "")).lower())
     ]
     accepted_logo_issues = [
         iss for iss in logo_issues
-        if iss.get("id") in accepted_set or any(k in str(c).lower() for c in accepted_set for k in ["logo", "replacement", "color", "distortion"])
+        if iss.get("id") in accepted_set or any(k in str(c).lower() for c in accepted_set for k in ["vis-logo-distortion", "vis-logo-color", "replacement", "recolor"])
     ]
 
     bad_count = 0
@@ -2444,6 +2567,15 @@ def verify_corrected_visual_asset(
             "passed": True,
             "detail": f"Replacement mark renders to canonical {canon_ratio}:1 aspect ratio without stretching."
         })
+
+    # Deduplicate checks so each check name appears exactly once in the verification card
+    seen_check_names = set()
+    unique_checks = []
+    for c in checks:
+        if c["name"] not in seen_check_names:
+            seen_check_names.add(c["name"])
+            unique_checks.append(c)
+    checks = unique_checks
 
     # Overall verdict
     all_passed = all(c["passed"] for c in checks) if checks else True
