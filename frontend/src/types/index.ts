@@ -126,9 +126,28 @@ export interface VisualAnalysisReport {
     confidence?: number;
     correction_type?: string;
     replacement_asset_url?: string;
+    brand_key?: string;
+    available_variants?: string[];
+    recommended_variant?: string;
+    selected_variant?: string;
+    detected_hex?: string;
+    expected_hex?: string;
   }>;
   review_status?: string;
   has_corrected_image?: boolean;
+  post_correction_verification?: {
+    passed: boolean;
+    status: "verified" | "needs_review" | "failed" | string;
+    status_headline: string;
+    summary: string;
+    checks: Array<{
+      name: string;
+      passed: boolean;
+      detail: string;
+      metric?: string;
+    }>;
+    verified_at?: string;
+  };
   accepted_corrections?: string[];
   rejected_corrections?: string[];
   creator_notes?: string;

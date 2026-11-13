@@ -63,6 +63,7 @@ class VisualAnalysisReport(Base):
     corrected_file_id = Column(String(36), ForeignKey("uploaded_files.id", ondelete="SET NULL"), nullable=True)
     corrected_image_path = Column(String(500), nullable=True)
     corrected_image_url = Column(String(500), nullable=True)
+    post_correction_verification = Column(JSON, nullable=True)  # Independent post-correction audit details
     review_status = Column(String(30), default="draft", nullable=False)  # draft, pending_review, approved, rejected, changes_requested
     accepted_corrections = Column(JSON, default=list, nullable=True)
     rejected_corrections = Column(JSON, default=list, nullable=True)

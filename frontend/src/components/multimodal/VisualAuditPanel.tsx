@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Maximize2,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { VisualAnalysisReport } from "@/types";
 import { api, getApiBaseUrl } from "@/lib/api";
@@ -45,6 +46,7 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"side_by_side" | "original" | "corrected">("side_by_side");
   const [creatorNotes, setCreatorNotes] = useState<string>("");
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
@@ -144,18 +146,68 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
     try {
       setIsGeneratingFix(true);
       setStatusMessage(null);
-      await api.post(`/multimodal/reports/${report.report_id}/generate-corrected`, {});
+
+      // Check if user selected an official variant for any logo finding
+      const logoIssue = report.visual_issues?.find(
+        (iss) => iss.category === "logo_integrity" || iss.brand_key
+      );
+      const chosenVariant = logoIssue
+        ? (selectedVariants[logoIssue.id || ""] || logoIssue.recommended_variant || "primary")
+        : undefined;
+
+      await api.post(`/multimodal/reports/${report.report_id}/generate-corrected`, {
+        selected_variant: chosenVariant,
+      });
+
       // Refresh report
       const repRes = await api.get(`/multimodal/reports/${report.report_id}`);
       setReport(repRes.data);
       setViewMode("side_by_side");
-      setStatusMessage({
-        type: "success",
-        text: "Applied accepted corrections and generated publication-ready visual!"
-      });
+
+      const ver = repRes.data.post_correction_verification;
+      if (ver?.passed) {
+        setStatusMessage({
+          type: "success",
+          text: `Applied official brand asset (${chosenVariant || "primary"}). Post-correction audit PASSED.`,
+        });
+      } else if (ver && !ver.passed) {
+        setStatusMessage({
+          type: "error",
+          text: `Applied correction, but post-correction audit flagged: ${ver.summary}`,
+        });
+      } else {
+        setStatusMessage({
+          type: "success",
+          text: "Applied accepted corrections and generated publication-ready visual!",
+        });
+      }
     } catch (e: any) {
       console.error(e);
       setStatusMessage({ type: "error", text: e.response?.data?.detail || "Failed to generate corrected visual." });
+    } finally {
+      setIsGeneratingFix(false);
+    }
+  };
+
+  const handleUndoCorrection = async () => {
+    if (!report) return;
+    try {
+      setIsGeneratingFix(true);
+      setStatusMessage(null);
+      await api.post(`/multimodal/reports/${report.report_id}/undo-correction`);
+      const repRes = await api.get(`/multimodal/reports/${report.report_id}`);
+      setReport(repRes.data);
+      setViewMode("original");
+      setStatusMessage({
+        type: "info",
+        text: "Applied replacement undone. Restored original visual asset.",
+      });
+    } catch (e: any) {
+      console.error(e);
+      setStatusMessage({
+        type: "error",
+        text: e.response?.data?.detail || "Failed to undo corrections.",
+      });
     } finally {
       setIsGeneratingFix(false);
     }
@@ -360,6 +412,17 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                         >
                           Side-by-Side
                         </button>
+                        <div className="h-3 w-px bg-midnight-200 mx-0.5" />
+                        <button
+                          type="button"
+                          onClick={handleUndoCorrection}
+                          disabled={isGeneratingFix}
+                          title="Undo applied replacement and restore original asset"
+                          className="px-2 py-0.5 rounded text-rose-600 hover:bg-rose-50 inline-flex items-center gap-1 font-semibold transition-colors disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Undo</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -394,10 +457,45 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                     </div>
                     {/* Corrected */}
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Corrected & Verified
-                      </span>
-                      <div className="relative rounded-2xl overflow-hidden border border-emerald-300 bg-midnight-950 flex items-center justify-center min-h-[220px]">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block flex items-center gap-1 ${
+                          report.post_correction_verification?.passed
+                            ? "text-emerald-700"
+                            : report.post_correction_verification?.passed === false
+                            ? "text-rose-700"
+                            : "text-brand-700"
+                        }`}>
+                          {report.post_correction_verification?.passed ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Corrected &amp; Verified
+                            </>
+                          ) : report.post_correction_verification?.passed === false ? (
+                            <>
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Correction Audit Failed
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 text-brand-600" /> Corrected Visual
+                            </>
+                          )}
+                        </span>
+                        {report.post_correction_verification && (
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                            report.post_correction_verification.passed
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : "bg-rose-100 text-rose-800 border border-rose-300"
+                          }`}>
+                            {report.post_correction_verification.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className={`relative rounded-2xl overflow-hidden border bg-midnight-950 flex items-center justify-center min-h-[220px] ${
+                        report.post_correction_verification?.passed
+                          ? "border-emerald-400"
+                          : report.post_correction_verification?.passed === false
+                          ? "border-rose-400"
+                          : "border-brand-300"
+                      }`}>
                         <img
                           src={`${apiBase}/multimodal/reports/${report.report_id}/image/corrected`}
                           alt="Corrected"
@@ -448,6 +546,85 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Independent Post-Correction Verification Audit Card */}
+                {report?.has_corrected_image && report.post_correction_verification && (
+                  <div
+                    className={`p-4 rounded-2xl border text-xs space-y-2.5 transition-all shadow-xs ${
+                      report.post_correction_verification.passed
+                        ? "bg-emerald-50/70 border-emerald-300 text-emerald-950"
+                        : "bg-rose-50/80 border-rose-300 text-rose-950"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {report.post_correction_verification.passed ? (
+                          <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                            <Check className="w-4 h-4" />
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 rounded-lg bg-rose-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                            <X className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-extrabold text-xs tracking-tight">
+                            {report.post_correction_verification.status_headline ||
+                              (report.post_correction_verification.passed
+                                ? "CORRECTED & VERIFIED BY AUDIT"
+                                : "POST-CORRECTION AUDIT FAILED")}
+                          </p>
+                          <p className="text-[10.5px] opacity-80">
+                            Independent brand integrity &amp; pixel-level verification
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[9.5px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          report.post_correction_verification.passed
+                            ? "bg-emerald-200/90 text-emerald-900 border border-emerald-300"
+                            : "bg-rose-200/90 text-rose-900 border border-rose-300"
+                        }`}
+                      >
+                        {report.post_correction_verification.status}
+                      </span>
+                    </div>
+
+                    <p className="text-[11.5px] leading-relaxed font-sans">
+                      {report.post_correction_verification.summary}
+                    </p>
+
+                    {report.post_correction_verification.checks &&
+                      report.post_correction_verification.checks.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-black/5">
+                          {report.post_correction_verification.checks.map((chk, i) => (
+                            <div
+                              key={i}
+                              className={`p-2 rounded-xl flex items-start gap-2 border text-[11px] ${
+                                chk.passed
+                                  ? "bg-white/90 border-emerald-200 text-emerald-950"
+                                  : "bg-white/90 border-rose-200 text-rose-950"
+                              }`}
+                            >
+                              {chk.passed ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              ) : (
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                              )}
+                              <div className="space-y-0.5 leading-tight overflow-hidden">
+                                <span className="font-bold block text-midnight-950 truncate">
+                                  {chk.name}
+                                </span>
+                                <span className="text-[10px] text-midnight-700 block line-clamp-2">
+                                  {chk.detail}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -692,6 +869,56 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                                 <strong>Recommended Fix:</strong> {iss.suggestion}
                               </div>
 
+                              {/* Official Brand Variant Selector */}
+                              {iss.available_variants && iss.available_variants.length > 0 && (
+                                <div className="p-2.5 rounded-xl bg-lavender-50/80 border border-midnight-100 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-midnight-800 uppercase tracking-wider">
+                                      Official Asset Variant for Replacement
+                                    </span>
+                                    {iss.recommended_variant && (
+                                      <span className="text-[9px] text-brand-600 font-semibold">
+                                        Recommended: {iss.recommended_variant.replace(/_/g, " ")}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {iss.available_variants.map((vKey) => {
+                                      const isChosen =
+                                        (selectedVariants[fid] || iss.recommended_variant || "primary") === vKey;
+                                      const label =
+                                        vKey === "primary"
+                                          ? "Primary (Official)"
+                                          : vKey === "monochrome_white"
+                                          ? "Monochrome White"
+                                          : vKey === "monochrome_black"
+                                          ? "Monochrome Black"
+                                          : vKey === "wordmark"
+                                          ? "Wordmark"
+                                          : vKey.replace(/_/g, " ");
+
+                                      return (
+                                        <button
+                                          key={vKey}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedVariants((prev) => ({ ...prev, [fid]: vKey }));
+                                          }}
+                                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                            isChosen
+                                              ? "bg-midnight-950 text-white border-midnight-950 shadow-xs ring-1 ring-midnight-950"
+                                              : "bg-white text-midnight-700 border-midnight-200 hover:border-midnight-400"
+                                          }`}
+                                        >
+                                          {label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Action Buttons: Accept or Reject */}
                               <div className="flex items-center justify-end gap-2 pt-1 border-t border-midnight-100/60">
                                 <button
@@ -773,6 +1000,18 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                           </>
                         )}
                       </button>
+
+                      {report?.has_corrected_image && (
+                        <button
+                          type="button"
+                          onClick={handleUndoCorrection}
+                          disabled={isGeneratingFix}
+                          className="w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 text-midnight-700 border border-midnight-200 font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-midnight-500" />
+                          <span>Revert to Original (Undo Applied Replacement)</span>
+                        </button>
+                      )}
 
                       {/* Submit for Review Section */}
                       <div className="pt-2 border-t border-midnight-200/60 space-y-2">

@@ -15,7 +15,12 @@ from app.models.brand_knowledge import BrandAsset, RestrictedTerm, BrandGuidelin
 from app.models.review import ReviewComment, ApprovalRecord
 from app.models.publication import PublishedContent
 from app.models.audit import AuditLog
-from app.engine.multimodal_engine import analyze_visual_asset, generate_corrected_visual_asset
+from app.engine.multimodal_engine import (
+    analyze_visual_asset,
+    generate_corrected_visual_asset,
+    verify_corrected_visual_asset,
+    VERIFIED_BRAND_REGISTRY,
+)
 
 router = APIRouter()
 
@@ -235,6 +240,7 @@ def analyze_visual_endpoint(
         "visual_issues": report.visual_issues,
         "review_status": report.review_status,
         "has_corrected_image": bool(report.corrected_image_path),
+        "post_correction_verification": report.post_correction_verification,
         "accepted_corrections": report.accepted_corrections or [],
         "rejected_corrections": report.rejected_corrections or [],
     }
@@ -272,6 +278,7 @@ def get_visual_report(
         "visual_issues": report.visual_issues,
         "review_status": report.review_status,
         "has_corrected_image": bool(report.corrected_image_path and os.path.exists(report.corrected_image_path)),
+        "post_correction_verification": report.post_correction_verification,
         "accepted_corrections": report.accepted_corrections or [],
         "rejected_corrections": report.rejected_corrections or [],
         "creator_notes": report.creator_notes,
@@ -352,6 +359,7 @@ def decide_visual_finding(
 @router.post("/reports/{report_id}/generate-corrected", summary="Auto-Generate Corrected Visual Asset")
 def generate_corrected_visual_endpoint(
     report_id: str,
+    payload: Optional[Dict[str, Any]] = Body(default=None),
     current_user: User = Depends(require_any_authenticated),
     db: Session = Depends(get_db),
 ):
@@ -371,13 +379,28 @@ def generate_corrected_visual_endpoint(
         BrandAsset.is_active == True
     ).first()
 
+    selected_variant = payload.get("selected_variant") if payload else None
+
     corrected_filename = f"{uuid.uuid4().hex[:12]}_corrected_{report.uploaded_file.original_filename}"
     corrected_path = os.path.join(IMAGE_UPLOAD_DIR, corrected_filename)
+
+    accepted = report.accepted_corrections or ["contrast_enhancement"]
 
     res = generate_corrected_visual_asset(
         original_image_path=orig_path,
         output_path=corrected_path,
-        accepted_corrections=report.accepted_corrections or ["contrast_enhancement"],
+        accepted_corrections=accepted,
+        brand_asset=brand_asset,
+        visual_issues=report.visual_issues,
+        selected_variant=selected_variant
+    )
+
+    # Independent Post-Correction Verification
+    verification_res = verify_corrected_visual_asset(
+        original_image_path=orig_path,
+        corrected_image_path=corrected_path,
+        visual_issues=report.visual_issues or [],
+        accepted_corrections=accepted,
         brand_asset=brand_asset
     )
 
@@ -393,6 +416,7 @@ def generate_corrected_visual_endpoint(
             "width": res["width"],
             "height": res["height"],
             "is_corrected_version": True,
+            "verification": verification_res,
         }
     )
     db.add(corr_file)
@@ -400,6 +424,7 @@ def generate_corrected_visual_endpoint(
 
     report.corrected_file_id = corr_file.id
     report.corrected_image_path = corrected_path
+    report.post_correction_verification = verification_res
     db.commit()
 
     return {
@@ -407,6 +432,73 @@ def generate_corrected_visual_endpoint(
         "report_id": report.id,
         "has_corrected_image": True,
         "corrected_url": f"/multimodal/reports/{report.id}/image/corrected",
+        "post_correction_verification": verification_res,
+    }
+
+
+@router.post("/reports/{report_id}/undo-correction", summary="Undo Applied Corrections and Restore Original")
+def undo_corrected_visual_endpoint(
+    report_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    report.corrected_file_id = None
+    report.corrected_image_path = None
+    report.post_correction_verification = None
+    report.accepted_corrections = []
+    db.commit()
+
+    return {
+        "message": "Corrections reset successfully. Reverted to original visual asset.",
+        "report_id": report.id,
+        "has_corrected_image": False,
+        "accepted_corrections": [],
+    }
+
+
+@router.get("/reports/{report_id}/variants", summary="Get Available Official Logo Variants for Detected Brand")
+def get_report_brand_variants(
+    report_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    brand_name = report.detected_logo_name or "LinkedIn"
+    brand_key = brand_name.lower().strip()
+    brand_info = VERIFIED_BRAND_REGISTRY.get(brand_key)
+
+    if not brand_info:
+        return {"brand_name": brand_name, "variants": [], "verified": False}
+
+    variants = [
+        {
+            "key": k,
+            "name": v["name"],
+            "aspect_ratio": v["aspect_ratio"],
+            "color_hex": v.get("color_hex"),
+            "is_monochrome": v.get("is_monochrome", False),
+        }
+        for k, v in brand_info.get("variants", {}).items()
+    ]
+    return {
+        "brand_name": brand_info["brand_name"],
+        "guideline_url": brand_info.get("guideline_url"),
+        "guideline_title": brand_info.get("guideline_title"),
+        "variants": variants,
+        "verified": True,
     }
 
 
@@ -580,6 +672,7 @@ def decide_visual_review(
         "visual_issues": report.visual_issues,
         "review_status": report.review_status,
         "has_corrected_image": bool(report.corrected_image_path and os.path.exists(report.corrected_image_path)),
+        "post_correction_verification": report.post_correction_verification,
         "accepted_corrections": report.accepted_corrections or [],
         "rejected_corrections": report.rejected_corrections or [],
         "creator_notes": report.creator_notes,
@@ -708,6 +801,7 @@ def get_submission_visual_reports(
             "visual_issues": r.visual_issues,
             "review_status": r.review_status,
             "has_corrected_image": bool(r.corrected_image_path and os.path.exists(r.corrected_image_path)),
+            "post_correction_verification": r.post_correction_verification,
             "accepted_corrections": r.accepted_corrections or [],
             "rejected_corrections": r.rejected_corrections or [],
             "creator_notes": r.creator_notes,

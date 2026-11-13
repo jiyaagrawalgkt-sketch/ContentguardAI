@@ -508,22 +508,72 @@ export default function ReviewerStationPage() {
               {/* Corrected Asset */}
               {(visualViewMode === "side_by_side" || visualViewMode === "corrected") && activeVisual.has_corrected_image && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-emerald-800">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      Corrected Brand Asset (WCAG Optimized)
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className={`flex items-center gap-1.5 ${
+                      activeVisual.post_correction_verification?.passed
+                        ? "text-emerald-800"
+                        : activeVisual.post_correction_verification?.passed === false
+                        ? "text-rose-800"
+                        : "text-brand-800"
+                    }`}>
+                      {activeVisual.post_correction_verification?.passed ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Corrected &amp; Verified Brand Asset</span>
+                        </>
+                      ) : activeVisual.post_correction_verification?.passed === false ? (
+                        <>
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Correction Failed Independent Verification</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                          <span>Corrected Visual Asset</span>
+                        </>
+                      )}
                     </span>
-                    <span className="text-[11px] text-emerald-600 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      WCAG 2.1 AA Compliant
-                    </span>
+                    {activeVisual.post_correction_verification ? (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        activeVisual.post_correction_verification.passed
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                          : "bg-rose-50 text-rose-700 border-rose-300"
+                      }`}>
+                        {activeVisual.post_correction_verification.status.toUpperCase()}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-emerald-600 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        WCAG 2.1 AA Compliant
+                      </span>
+                    )}
                   </div>
-                  <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-300 bg-emerald-50/10 flex items-center justify-center p-2 min-h-[260px]">
+                  <div className={`relative rounded-2xl overflow-hidden border-2 flex items-center justify-center p-2 min-h-[260px] ${
+                    activeVisual.post_correction_verification?.passed
+                      ? "border-emerald-300 bg-emerald-50/10"
+                      : activeVisual.post_correction_verification?.passed === false
+                      ? "border-rose-300 bg-rose-50/10"
+                      : "border-brand-200 bg-slate-50"
+                  }`}>
                     <img
                       src={`${apiBase}/multimodal/reports/${activeVisualId}/image/corrected`}
                       alt="Corrected Visual Asset"
                       className="max-h-[360px] w-auto object-contain rounded-xl shadow-sm"
                     />
                   </div>
+                  {activeVisual.post_correction_verification && (
+                    <div className={`p-2.5 rounded-xl border text-[11px] leading-relaxed ${
+                      activeVisual.post_correction_verification.passed
+                        ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                        : "bg-rose-50/70 border-rose-200 text-rose-900"
+                    }`}>
+                      <p className="font-bold text-[10.5px]">
+                        {activeVisual.post_correction_verification.status_headline}
+                      </p>
+                      <p className="text-[10px] mt-0.5 opacity-90">
+                        {activeVisual.post_correction_verification.summary}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
