@@ -537,9 +537,9 @@ def list_demo_accounts():
             "role": "demo",
             "email": "demo@contentguard.ai",
             "password": "Demo@12345",
-            "name": "Hackathon Judge",
-            "title": "Evaluator Demo Account",
-            "description": "Pre-seeded judge account with sample brand guidelines, approved facts, submissions, and whitepapers."
+            "name": "Demo Creator",
+            "title": "Content Creator (Demo Account)",
+            "description": "Pre-seeded creator account with sample brand guidelines, approved facts, submissions, and whitepapers."
         },
         {
             "role": "creator",

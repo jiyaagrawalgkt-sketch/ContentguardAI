@@ -104,21 +104,21 @@ export default function LoginPage() {
         <div className="bg-white py-8 px-4 shadow-card sm:rounded-3xl sm:px-10 border border-midnight-100 space-y-6">
 
           {/* ======================================================== */}
-          {/* SEEDED DEMO ACCOUNT CALLOUT BANNER                        */}
+          {/* SEEDED CREATOR DEMO ACCOUNT CALLOUT BANNER               */}
           {/* ======================================================== */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-brand-50/70 via-white to-purple-50/60 border border-brand-200">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-midnight-900 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-                Demo Account (Quick Access)
+                Demo Account (Creator)
               </span>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800">
-                Seeded Workspace
+                Creator Role
               </span>
             </div>
 
             <p className="text-[11px] text-midnight-600 mb-3 leading-relaxed">
-              Judges and evaluators can use this pre-configured account to explore content analysis, the Knowledge Hub, and the Evidence Graph.
+              Sign in with this pre-configured Creator account to explore content drafting, automated AI compliance analysis, the Knowledge Hub, and the Evidence Graph.
             </p>
 
             <div className="bg-white/90 rounded-xl border border-midnight-100 p-2.5 space-y-1.5 text-xs font-mono">
@@ -159,7 +159,7 @@ export default function LoginPage() {
                 onClick={fillDemoCredentials}
                 className="flex-1 py-1.5 px-3 rounded-xl border border-midnight-200 hover:bg-white text-[11px] font-semibold text-midnight-700 transition-colors"
               >
-                Auto-Fill Credentials
+                Auto-Fill Creator Demo
               </button>
               <button
                 type="button"
@@ -172,7 +172,7 @@ export default function LoginPage() {
                 ) : (
                   <ArrowRight className="w-3 h-3" />
                 )}
-                <span>Enter Demo Workspace</span>
+                <span>Enter Creator Workspace</span>
               </button>
             </div>
           </div>

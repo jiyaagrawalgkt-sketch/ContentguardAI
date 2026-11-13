@@ -27,7 +27,7 @@ DEMO_PASSWORD = "Demo@12345"
 DEMO_USERS = [
     {
         "email": "demo@contentguard.ai",
-        "full_name": "Hackathon Judge (Demo User)",
+        "full_name": "Demo Creator",
         "role": UserRole.CREATOR.value,
         "password": DEMO_PASSWORD,
     },
@@ -98,8 +98,10 @@ def seed_demo_environment(db=None):
                 db.commit()
                 print(f"Created demo user: {user.email} (Role: {user.role})")
             else:
-                # Update password to ensure it matches DEMO_PASSWORD
+                # Update password and full_name to ensure it matches
                 existing.hashed_password = hash_password(user_data["password"])
+                existing.full_name = user_data["full_name"]
+                existing.role = user_data["role"]
                 db.commit()
 
         # 3. Brand Guidelines

@@ -200,7 +200,7 @@ ContentGuard AI provides a dedicated, pre-seeded Hackathon Demo Account displaye
 
 | Account Type | Email | Password | Landing Page & Capabilities |
 | :--- | :--- | :--- | :--- |
-| 🌟 **Judge Demo User** | `demo@contentguard.ai` | `Demo@12345` | **`/creator`** — Multi-Persona Demo Account with 1-click login on login page, seeded brand guidelines, sample knowledge base papers, vector chunks, and brand assets |
+| 🌟 **Demo Creator** | `demo@contentguard.ai` | `Demo@12345` | **`/creator`** — Seeded Creator Workspace with 1-click login on login page, brand guidelines, sample whitepapers, vector chunks, and brand assets |
 | **Compliance Officer** | `compliance@contentguard.demo` | `Demo@123` | **`/compliance`** — Regulatory claim verification queue, certify/reject actions, and append-only audit trail logs |
 | **Administrator** | `admin@contentguard.demo` | `Demo@123` | **`/admin`** — Platform overview KPIs, user management, role assignments, system health |
 | **Reviewer** | `reviewer@contentguard.demo` | `Demo@123` | **`/reviewer`** — Queue status filters, side-by-side diffs, evidence verification graph, conflict guard, approve & publish |
