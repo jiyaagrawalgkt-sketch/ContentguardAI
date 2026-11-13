@@ -57,9 +57,24 @@ class VisualAnalysisReport(Base):
 
     # Aggregated Visual Violations
     visual_score = Column(Float, default=100.0, nullable=False)
-    visual_issues = Column(JSON, nullable=True)  # List of {type, severity, title, explanation, suggestion}
+    visual_issues = Column(JSON, nullable=True)  # List of {type, severity, title, explanation, suggestion, region}
+
+    # Visual Workflow & Approval Extension
+    corrected_file_id = Column(String(36), ForeignKey("uploaded_files.id", ondelete="SET NULL"), nullable=True)
+    corrected_image_path = Column(String(500), nullable=True)
+    corrected_image_url = Column(String(500), nullable=True)
+    review_status = Column(String(30), default="draft", nullable=False)  # draft, pending_review, approved, rejected, changes_requested
+    accepted_corrections = Column(JSON, default=list, nullable=True)
+    rejected_corrections = Column(JSON, default=list, nullable=True)
+    creator_notes = Column(Text, nullable=True)
+    reviewer_comments = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by_user_id = Column(String(36), nullable=True)
+    is_published = Column(Boolean, default=False, nullable=False)
+    published_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     submission = relationship("ContentSubmission", back_populates="visual_reports")
-    uploaded_file = relationship("UploadedFile")
+    uploaded_file = relationship("UploadedFile", foreign_keys=[uploaded_file_id])
+    corrected_file = relationship("UploadedFile", foreign_keys=[corrected_file_id])

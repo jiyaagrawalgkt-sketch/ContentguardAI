@@ -30,6 +30,7 @@ export interface ExtractedClaim {
   id: string;
   claim_text: string;
   claim_type: string;
+  sentence?: string;
   verification_status: "supported" | "unsupported" | "conflicting" | "outdated" | "unverified";
   severity: "critical" | "high" | "medium" | "low";
   confidence: number;
@@ -68,6 +69,7 @@ export interface EvidenceGraphData {
 }
 
 export interface VisualAnalysisReport {
+  id?: string;
   report_id: string;
   submission_id?: string;
   filename?: string;
@@ -83,6 +85,7 @@ export interface VisualAnalysisReport {
     primary_fg: string;
   };
   palette_match_score: number;
+  palette_colors?: string[];
   dominant_colors: Array<{
     hex: string;
     rgb: [number, number, number];
@@ -105,12 +108,22 @@ export interface VisualAnalysisReport {
   logo_status: string;
   ocr_extracted_text?: string;
   visual_issues: Array<{
+    id?: string;
     type: string;
     severity: string;
     title: string;
     explanation: string;
     suggestion: string;
+    region?: { x: number; y: number; width: number; height: number };
+    category?: string;
   }>;
+  review_status?: string;
+  has_corrected_image?: boolean;
+  accepted_corrections?: string[];
+  rejected_corrections?: string[];
+  creator_notes?: string;
+  reviewer_comments?: string;
+  is_published?: boolean;
   created_at?: string;
 }
 

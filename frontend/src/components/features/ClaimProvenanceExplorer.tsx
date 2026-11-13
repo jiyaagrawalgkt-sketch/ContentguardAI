@@ -15,6 +15,8 @@ import {
   Loader2,
   FileText,
   Search,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { ExtractedClaim } from "@/types";
 import { api } from "@/lib/api";
@@ -26,23 +28,44 @@ interface ClaimProvenanceProps {
 export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) {
   const [claims, setClaims] = useState<ExtractedClaim[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [reverifying, setReverifying] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchClaims();
+    if (submissionId) {
+      fetchClaims();
+    }
   }, [submissionId]);
 
   const fetchClaims = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get(`/evidence/claims/${submissionId}`);
       setClaims(res.data || []);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError(e.response?.data?.detail || "Failed to retrieve claim provenance data.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReverify = async () => {
+    try {
+      setReverifying(true);
+      setError(null);
+      const res = await api.post(`/evidence/reverify/${submissionId}`);
+      const updated = res.data.claims || [];
+      setClaims(updated);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.response?.data?.detail || "Re-verification failed. Please try again.");
+    } finally {
+      setReverifying(false);
     }
   };
 
@@ -109,6 +132,23 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
     );
   }
 
+  if (error) {
+    return (
+      <div className="bg-white rounded-3xl border border-rose-200 shadow-card p-8 text-center space-y-3">
+        <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
+        <h4 className="text-sm font-bold text-rose-950">Claim Extraction Failed</h4>
+        <p className="text-xs text-rose-700 max-w-md mx-auto leading-relaxed">{error}</p>
+        <button
+          onClick={fetchClaims}
+          className="px-4 py-2 rounded-xl bg-midnight-950 text-white font-semibold text-xs shadow-md inline-flex items-center gap-2 hover:bg-midnight-900 transition-all"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Retry Evidence Extraction</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-3xl border border-midnight-100 shadow-card p-6 space-y-5">
       {/* Header */}
@@ -120,7 +160,7 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
               Claim Provenance Explorer
             </h3>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200 uppercase tracking-wider">
-              Traceability Engine
+              {claims.length} Verified Assertions
             </span>
           </div>
           <p className="text-xs text-midnight-500 mt-0.5">
@@ -128,8 +168,21 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
           </p>
         </div>
 
-        {/* Filter buttons */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleReverify}
+            disabled={reverifying}
+            className="px-3.5 py-1.5 rounded-xl border border-midnight-200 bg-white hover:bg-lavender-50 text-midnight-800 text-xs font-semibold inline-flex items-center gap-1.5 shadow-subtle transition-all disabled:opacity-50"
+          >
+            {reverifying ? <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" /> : <RefreshCw className="w-3.5 h-3.5 text-brand-600" />}
+            <span>Re-Verify Claims</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
           {["all", "supported", "unsupported", "conflicting", "outdated"].map((st) => (
             <button
               key={st}
@@ -140,40 +193,75 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
                   : "bg-lavender-50 text-midnight-600 hover:bg-midnight-100"
               }`}
             >
-              {st}
+              {st} {st !== "all" && `(${claims.filter(c => c.verification_status.toLowerCase() === st).length})`}
             </button>
           ))}
+        </div>
+
+        <div className="relative min-w-[220px]">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search claims or citations..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-midnight-200 text-xs text-midnight-950 placeholder:text-midnight-400 focus:outline-none focus:ring-1 focus:ring-brand-600"
+          />
+          <Search className="w-3.5 h-3.5 text-midnight-400 absolute left-2.5 top-2.5" />
         </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className="py-12 text-center space-y-2">
           <FileText className="w-8 h-8 text-midnight-300 mx-auto" />
-          <p className="text-sm font-bold text-midnight-800">No matching claims found</p>
-          <p className="text-xs text-midnight-500">
+          <p className="text-sm font-bold text-midnight-800">
             {claims.length === 0
-              ? "No factual claims were detected in this content submission."
-              : "Try switching status filters to view other extracted assertions."}
+              ? "No factual claims detected"
+              : "No claims match this filter"}
           </p>
+          <p className="text-xs text-midnight-500 max-w-sm mx-auto leading-relaxed">
+            {claims.length === 0
+              ? "Claim extraction completed successfully. This draft contains general marketing, guidance, or creative copy without specific numerical, benchmark, or SLA assertions."
+              : "Try switching status filters or clearing the search query to inspect other extracted assertions."}
+          </p>
+          {claims.length === 0 && (
+            <div className="pt-2">
+              <button
+                onClick={handleReverify}
+                disabled={reverifying}
+                className="px-3.5 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 inline-flex items-center gap-1.5 shadow-sm"
+              >
+                {reverifying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <span>Re-Scan Content for Claims</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
           {filtered.map((claim, idx) => (
             <div
               key={claim.id || idx}
-              className="p-5 rounded-2xl border border-midnight-100 bg-white hover:border-brand-300 transition-all shadow-subtle space-y-3"
+              className={`p-5 rounded-2xl border transition-all shadow-subtle space-y-3 ${
+                claim.verification_status === "supported"
+                  ? "border-emerald-200 bg-emerald-50/20"
+                  : claim.verification_status === "conflicting"
+                  ? "border-amber-200 bg-amber-50/20"
+                  : claim.verification_status === "outdated"
+                  ? "border-purple-200 bg-purple-50/20"
+                  : "border-rose-200 bg-rose-50/20"
+              }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-midnight-100/60 pb-2.5">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono font-bold text-midnight-400">#{idx + 1}</span>
                   {getStatusBadge(claim.verification_status)}
-                  <span className="text-[11px] font-semibold text-midnight-600 capitalize bg-lavender-50 px-2 py-0.5 rounded border border-midnight-100">
+                  <span className="text-[11px] font-semibold text-midnight-600 capitalize bg-white px-2 py-0.5 rounded border border-midnight-100">
                     {claim.claim_type.replace("_", " ")}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-midnight-500 font-mono">
-                  <span>Confidence: {Math.round((claim.confidence || 1) * 100)}%</span>
+                  <span>Confidence: {Math.round((claim.confidence || 0.95) * 100)}%</span>
                   <button
                     onClick={() => handleCopy(claim.claim_text, claim.id)}
                     className="p-1 hover:text-midnight-900 rounded"
@@ -185,38 +273,50 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
               </div>
 
               {/* Claim Text */}
-              <div className="text-xs font-mono font-bold text-midnight-950 bg-lavender-50/60 p-3 rounded-xl border border-midnight-100">
+              <div className="text-xs font-mono font-bold text-midnight-950 bg-white p-3 rounded-xl border border-midnight-100">
                 &ldquo;{claim.claim_text}&rdquo;
               </div>
 
+              {/* Surrounding Context */}
+              <div className="text-[11px] text-midnight-500 italic">
+                From draft sentence: &ldquo;{claim.sentence || claim.claim_text}&rdquo;
+              </div>
+
               {/* Audit Explanation */}
-              <p className="text-xs text-midnight-700 leading-relaxed">
+              <p className="text-xs text-midnight-800 leading-relaxed font-medium">
                 {claim.explanation}
               </p>
 
-              {/* Corroborating Passage */}
-              {claim.source_passage && (
-                <div className="p-3 rounded-xl bg-emerald-50/40 border border-emerald-100 text-xs space-y-1">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-900">
-                    <span className="flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
-                      Approved Knowledge Source: {claim.source_document_name || "Official Fact Vault"}
+              {/* Corroborating Passage or Source */}
+              {claim.source_document_name ? (
+                <div className="p-3 rounded-xl bg-white border border-midnight-200/80 text-xs space-y-1.5 shadow-sm">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-midnight-900">
+                    <span className="flex items-center gap-1.5 text-brand-700">
+                      <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+                      Approved Knowledge Source: {claim.source_document_name}
                     </span>
                     {claim.source_validity_date && (
-                      <span className="text-[10px] text-emerald-700 font-mono">
+                      <span className="text-[10px] text-midnight-500 font-mono">
                         Valid Until: {claim.source_validity_date}
                       </span>
                     )}
                   </div>
-                  <p className="font-mono text-[11px] text-emerald-950 leading-relaxed whitespace-pre-wrap">
-                    {claim.source_passage}
-                  </p>
+                  {claim.source_passage && (
+                    <p className="font-mono text-[11px] text-midnight-800 leading-relaxed bg-lavender-50/50 p-2 rounded-lg border border-midnight-100 whitespace-pre-wrap">
+                      {claim.source_passage}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-white border border-rose-200 text-xs text-rose-800">
+                  <span className="font-bold block mb-0.5">Evidence Deficit:</span>
+                  <p className="leading-relaxed">No approved organizational evidence source was found for this assertion in the Knowledge Base.</p>
                 </div>
               )}
 
               {/* Suggested Remediation */}
               {claim.suggested_correction && (
-                <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs text-amber-950">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
                   <span className="font-bold block mb-0.5">Recommended Remediation:</span>
                   <p className="leading-relaxed">{claim.suggested_correction}</p>
                 </div>

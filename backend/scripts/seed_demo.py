@@ -39,13 +39,13 @@ DEMO_USERS = [
     },
     {
         "email": "reviewer@contentguard.demo",
-        "full_name": "Samantha Chen (Reviewer)",
+        "full_name": "Jiya Agrawal",
         "role": UserRole.REVIEWER.value,
         "password": DEMO_PASSWORD,
     },
     {
         "email": "admin@contentguard.demo",
-        "full_name": "Marcus Vance (Admin)",
+        "full_name": "Namo Tripathi",
         "role": UserRole.ADMIN.value,
         "password": DEMO_PASSWORD,
     },
@@ -158,15 +158,39 @@ def seed_demo_environment(db=None):
         facts = [
             {
                 "topic": "SLA & Availability",
-                "statement": "ContentGuard AI provides a 99.9% uptime SLA backed by SOC-2 Type II certified enterprise infrastructure.",
-                "verified_numbers": {"uptime_sla": 99.9, "cert": "SOC-2 Type II"},
-                "reference_url_or_doc": "https://acme.com/trust/soc2-report.pdf"
+                "statement": "ContentGuard AI provides a 99.9% uptime SLA for all enterprise deployments.",
+                "verified_numbers": {"uptime_sla": 99.9},
+                "reference_url_or_doc": "Cloud Infrastructure SLA Agreement v3.1"
+            },
+            {
+                "topic": "Customer Support",
+                "statement": "We provide 24/7 customer support with dedicated technical account management.",
+                "verified_numbers": {"support_coverage": "24/7"},
+                "reference_url_or_doc": "Enterprise Support Services Guide 2026"
+            },
+            {
+                "topic": "Security & Compliance",
+                "statement": "Our platform is certified under SOC 2 Type II compliance standards.",
+                "verified_numbers": {"soc2": "Type II", "certified": True},
+                "reference_url_or_doc": "SOC 2 Type II Independent Audit Report"
+            },
+            {
+                "topic": "Company History",
+                "statement": "Acme Global was established in 2018 in San Francisco, CA.",
+                "verified_numbers": {"established_year": 2018},
+                "reference_url_or_doc": "Corporate Governance Charter 2018"
+            },
+            {
+                "topic": "Customer Base",
+                "statement": "We serve more than 500 enterprise customers across financial services, healthcare, and technology.",
+                "verified_numbers": {"enterprise_customers": 500},
+                "reference_url_or_doc": "Annual Growth & Customer Report 2026"
             },
             {
                 "topic": "Processing Capacity",
                 "statement": "ContentGuard AI processes up to 12,000 compliance document evaluations per minute with sub-500ms latency.",
                 "verified_numbers": {"evals_per_min": 12000, "latency_ms": 500},
-                "reference_url_or_doc": "https://acme.com/benchmarks/2026-throughput"
+                "reference_url_or_doc": "Acme Benchmark Whitepaper v2.6"
             },
             {
                 "topic": "Supported Formats",

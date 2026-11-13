@@ -570,7 +570,7 @@ def list_demo_accounts():
             "role": "reviewer",
             "email": "reviewer@contentguard.demo",
             "password": "Demo@12345",
-            "name": "Samantha Chen",
+            "name": "Jiya Agrawal",
             "title": "Brand Governance Reviewer",
             "description": "Inspect submissions, view side-by-side diffs, request changes, and approve."
         },
@@ -578,7 +578,7 @@ def list_demo_accounts():
             "role": "admin",
             "email": "admin@contentguard.demo",
             "password": "Demo@12345",
-            "name": "Marcus Vance",
+            "name": "Namo Tripathi",
             "title": "Organization Administrator",
             "description": "Configure brand voice guidelines, manage approved facts, restricted terms, and view audit trail."
         },

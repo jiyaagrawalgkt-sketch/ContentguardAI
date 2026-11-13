@@ -101,7 +101,7 @@ export default function CompliancePortalPage() {
           action: "KNOWLEDGE_DOC_UPLOADED",
           entity_type: "knowledge_document",
           actor_email: "admin@contentguard.demo",
-          actor_name: "Marcus Vance",
+          actor_name: "Namo Tripathi",
           actor_role: "admin",
           timestamp: new Date(Date.now() - 3600000).toISOString(),
           details: { title: "Acme Platform Whitepaper 2026.pdf", chunks_indexed: 14 },

@@ -19,6 +19,7 @@ router = APIRouter()
 
 
 @router.post("/verify/{submission_id}", summary="Verify Claims for Submission")
+@router.post("/reverify/{submission_id}", summary="Re-Verify Claims for Submission")
 def verify_submission_evidence(
     submission_id: str,
     current_user: User = Depends(require_any_authenticated),
@@ -46,7 +47,7 @@ def verify_submission_evidence(
         content_body = submission.versions[-1].content_body
 
     if not content_body:
-        return {"message": "Submission has no text content to verify", "claims": []}
+        return {"submission_id": submission_id, "total_claims": 0, "claims": []}
 
     # 1. Extract raw factual claims
     raw_claims = extract_factual_claims(content_body)
@@ -131,11 +132,56 @@ def get_submission_claims(
     current_user: User = Depends(require_any_authenticated),
     db: Session = Depends(get_db),
 ):
-    """Retrieve all claims and supporting evidence records for a given submission."""
+    """Retrieve all claims and supporting evidence records for a given submission.
+    Auto-extracts and verifies on-the-fly if no claims are persisted yet."""
+    submission = db.query(ContentSubmission).filter(
+        ContentSubmission.id == submission_id,
+        ContentSubmission.organization_id == current_user.organization_id
+    ).first()
+
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
     claims = db.query(ExtractedClaim).filter(
         ExtractedClaim.submission_id == submission_id,
         ExtractedClaim.organization_id == current_user.organization_id
     ).all()
+
+    # If no claims yet, run auto extraction & verification so Creator & Reviewer see live data
+    if not claims:
+        content_body = ""
+        if submission.current_version_id:
+            current_ver = next((v for v in submission.versions if v.id == submission.current_version_id), None)
+            if current_ver:
+                content_body = current_ver.content_body
+        if not content_body and submission.versions:
+            content_body = submission.versions[-1].content_body
+
+        if content_body and content_body.strip():
+            raw_claims = extract_factual_claims(content_body)
+            verified = verify_claims_against_evidence(raw_claims, current_user.organization_id, db)
+            for item in verified:
+                c = ExtractedClaim(
+                    id=str(uuid.uuid4()),
+                    submission_id=submission_id,
+                    organization_id=current_user.organization_id,
+                    claim_text=item["claim_text"],
+                    claim_type=item["claim_type"],
+                    verification_status=item["verification_status"],
+                    severity=item["severity"],
+                    confidence=item["confidence"],
+                    explanation=item["explanation"],
+                    retrieved_evidence_text=item["retrieved_evidence_text"],
+                    source_document_id=item["source_document_id"],
+                    source_document_name=item["source_document_name"],
+                    source_passage=item["source_passage"],
+                    source_validity_date=item["source_validity_date"],
+                    recommended_action=item["recommended_action"],
+                    suggested_correction=item["suggested_correction"],
+                )
+                db.add(c)
+                claims.append(c)
+            db.commit()
 
     return [
         {

@@ -1,17 +1,19 @@
 import os
 import uuid
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.permissions import get_current_user, require_creator, require_any_authenticated
+from app.core.permissions import get_current_user, require_creator, require_reviewer, require_any_authenticated
 from app.models.user import User
 from app.models.submission import ContentSubmission, UploadedFile, ContentVersion, SubmissionStatus
 from app.models.multimodal import VisualAnalysisReport
 from app.models.brand_knowledge import BrandAsset, RestrictedTerm
 from app.models.audit import AuditLog
-from app.engine.multimodal_engine import analyze_visual_asset
+from app.engine.multimodal_engine import analyze_visual_asset, generate_corrected_visual_asset
 
 router = APIRouter()
 
@@ -190,7 +192,342 @@ async def analyze_visual_endpoint(
         "logo_status": report.logo_status,
         "ocr_extracted_text": report.ocr_extracted_text,
         "visual_issues": report.visual_issues,
+        "review_status": report.review_status,
+        "has_corrected_image": bool(report.corrected_image_path),
+        "accepted_corrections": report.accepted_corrections or [],
+        "rejected_corrections": report.rejected_corrections or [],
     }
+
+
+@router.get("/reports/{report_id}", summary="Get Single Visual Analysis Report")
+def get_visual_report(
+    report_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visual report not found")
+
+    return {
+        "report_id": report.id,
+        "submission_id": report.submission_id,
+        "dimensions": f"{report.image_width}x{report.image_height}",
+        "aspect_ratio": report.aspect_ratio,
+        "visual_score": report.visual_score,
+        "wcag_compliance": report.wcag_compliance,
+        "contrast_ratio": report.contrast_ratio,
+        "contrast_details": report.contrast_details,
+        "palette_match_score": report.palette_match_score,
+        "dominant_colors": report.dominant_colors,
+        "palette_deviations": report.palette_deviations,
+        "alt_text_evaluation": report.alt_text_evaluation,
+        "logo_status": report.logo_status,
+        "ocr_extracted_text": report.ocr_extracted_text,
+        "visual_issues": report.visual_issues,
+        "review_status": report.review_status,
+        "has_corrected_image": bool(report.corrected_image_path and os.path.exists(report.corrected_image_path)),
+        "accepted_corrections": report.accepted_corrections or [],
+        "rejected_corrections": report.rejected_corrections or [],
+        "creator_notes": report.creator_notes,
+        "reviewer_comments": report.reviewer_comments,
+        "reviewed_at": report.reviewed_at.isoformat() if report.reviewed_at else None,
+        "is_published": report.is_published,
+        "created_at": report.created_at.isoformat(),
+    }
+
+
+@router.get("/reports/{report_id}/image/{variant}", summary="Serve Visual Asset Image File")
+def get_report_image(
+    report_id: str,
+    variant: str,  # 'original' or 'corrected'
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(VisualAnalysisReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    file_path = None
+    if variant.lower() == "corrected":
+        file_path = report.corrected_image_path
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Corrected image not found")
+    else:
+        if report.uploaded_file and report.uploaded_file.stored_path:
+            file_path = report.uploaded_file.stored_path
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Original image not found")
+
+    return FileResponse(file_path, media_type="image/png")
+
+
+@router.post("/reports/{report_id}/findings/{finding_id}/decision", summary="Accept or Reject Individual Visual Correction")
+def decide_visual_finding(
+    report_id: str,
+    finding_id: str,
+    payload: Dict[str, str] = Body(...),
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    decision = payload.get("decision", "").lower().strip()
+    if decision not in ["accept", "reject", "reset"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Decision must be 'accept', 'reject', or 'reset'")
+
+    accepted = set(report.accepted_corrections or [])
+    rejected = set(report.rejected_corrections or [])
+
+    if decision == "accept":
+        accepted.add(finding_id)
+        rejected.discard(finding_id)
+    elif decision == "reject":
+        rejected.add(finding_id)
+        accepted.discard(finding_id)
+    else:
+        accepted.discard(finding_id)
+        rejected.discard(finding_id)
+
+    report.accepted_corrections = list(accepted)
+    report.rejected_corrections = list(rejected)
+    db.commit()
+
+    return {
+        "message": f"Finding '{finding_id}' marked as {decision}ed",
+        "accepted_corrections": report.accepted_corrections,
+        "rejected_corrections": report.rejected_corrections,
+    }
+
+
+@router.post("/reports/{report_id}/generate-corrected", summary="Auto-Generate Corrected Visual Asset")
+def generate_corrected_visual_endpoint(
+    report_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report or not report.uploaded_file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report or source file not found")
+
+    orig_path = report.uploaded_file.stored_path
+    if not os.path.exists(orig_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source image file missing from server")
+
+    brand_asset = db.query(BrandAsset).filter(
+        BrandAsset.organization_id == current_user.organization_id,
+        BrandAsset.is_active == True
+    ).first()
+
+    corrected_filename = f"{uuid.uuid4().hex[:12]}_corrected_{report.uploaded_file.original_filename}"
+    corrected_path = os.path.join(IMAGE_UPLOAD_DIR, corrected_filename)
+
+    res = generate_corrected_visual_asset(
+        original_image_path=orig_path,
+        output_path=corrected_path,
+        accepted_corrections=report.accepted_corrections or ["contrast_enhancement"],
+        brand_asset=brand_asset
+    )
+
+    # Save UploadedFile record for corrected asset
+    corr_file = UploadedFile(
+        id=str(uuid.uuid4()),
+        submission_id=report.submission_id,
+        original_filename=f"corrected_{report.uploaded_file.original_filename}",
+        stored_path=corrected_path,
+        mime_type="image/png",
+        file_size_bytes=os.path.getsize(corrected_path),
+        metadata_json={
+            "width": res["width"],
+            "height": res["height"],
+            "is_corrected_version": True,
+        }
+    )
+    db.add(corr_file)
+    db.flush()
+
+    report.corrected_file_id = corr_file.id
+    report.corrected_image_path = corrected_path
+    db.commit()
+
+    return {
+        "message": "Corrected visual asset generated successfully",
+        "report_id": report.id,
+        "has_corrected_image": True,
+        "corrected_url": f"/multimodal/reports/{report.id}/image/corrected",
+    }
+
+
+@router.post("/reports/{report_id}/upload-corrected", summary="Upload Artist-Corrected Visual Asset")
+async def upload_corrected_visual_endpoint(
+    report_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    file_bytes = await file.read()
+    filename = file.filename or "corrected.png"
+    safe_name = f"{uuid.uuid4().hex[:12]}_user_corrected_{filename}"
+    file_path = os.path.join(IMAGE_UPLOAD_DIR, safe_name)
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    corr_file = UploadedFile(
+        id=str(uuid.uuid4()),
+        submission_id=report.submission_id,
+        original_filename=filename,
+        stored_path=file_path,
+        mime_type=file.content_type or "image/png",
+        file_size_bytes=len(file_bytes),
+        metadata_json={"is_artist_corrected": True}
+    )
+    db.add(corr_file)
+    db.flush()
+
+    report.corrected_file_id = corr_file.id
+    report.corrected_image_path = file_path
+    db.commit()
+
+    return {
+        "message": "Replacement visual uploaded successfully",
+        "report_id": report.id,
+        "has_corrected_image": True,
+    }
+
+
+@router.post("/reports/{report_id}/submit-review", summary="Submit Visual Asset For Reviewer Approval")
+def submit_visual_for_review(
+    report_id: str,
+    payload: Dict[str, str] = Body(...),
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    notes = payload.get("notes", "")
+    report.creator_notes = notes
+    report.review_status = "pending_review"
+
+    # Also update submission status
+    if report.submission:
+        report.submission.status = SubmissionStatus.PENDING_REVIEW.value
+
+    audit = AuditLog(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        action="VISUAL_SUBMITTED_FOR_REVIEW",
+        entity_type="visual_report",
+        entity_id=report.id,
+        details={"notes": notes}
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "message": "Visual asset submitted for reviewer governance check",
+        "report_id": report.id,
+        "review_status": report.review_status,
+    }
+
+
+@router.post("/reports/{report_id}/review-decision", summary="Reviewer Decision on Visual Asset")
+def decide_visual_review(
+    report_id: str,
+    payload: Dict[str, str] = Body(...),
+    current_user: User = Depends(require_reviewer),
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    decision = payload.get("decision", "").lower().strip()
+    comment = payload.get("comment", "").strip()
+
+    valid = {"approved": "approved", "rejected": "rejected", "changes_requested": "changes_requested"}
+    if decision not in valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Decision must be 'approved', 'rejected', or 'changes_requested'")
+
+    report.review_status = valid[decision]
+    report.reviewer_comments = comment
+    report.reviewed_at = datetime.now(timezone.utc)
+    report.reviewed_by_user_id = current_user.id
+
+    if decision == "approved":
+        report.is_published = True
+        report.published_at = datetime.now(timezone.utc)
+        if report.submission:
+            report.submission.status = SubmissionStatus.APPROVED.value
+    elif decision == "changes_requested" and report.submission:
+        report.submission.status = SubmissionStatus.CHANGES_REQUESTED.value
+    elif decision == "rejected" and report.submission:
+        report.submission.status = SubmissionStatus.REJECTED.value
+
+    audit = AuditLog(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        action=f"VISUAL_REVIEW_{decision.upper()}",
+        entity_type="visual_report",
+        entity_id=report.id,
+        details={"comment": comment, "decision": decision}
+    )
+    db.add(audit)
+    db.commit()
+
+    return {
+        "message": f"Visual asset review recorded: {decision}",
+        "report_id": report.id,
+        "review_status": report.review_status,
+        "is_published": report.is_published,
+        "reviewer": current_user.full_name,
+    }
+
+
+@router.get("/reports/{report_id}/download-asset", summary="Download Certified Publication-Ready Asset")
+def download_approved_visual(
+    report_id: str,
+    db: Session = Depends(get_db),
+):
+    report = db.query(VisualAnalysisReport).filter(VisualAnalysisReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    if not report.is_published and report.review_status != "approved":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Asset has not been certified and approved for publication")
+
+    # Use corrected if available, otherwise original
+    file_path = report.corrected_image_path or (report.uploaded_file.stored_path if report.uploaded_file else None)
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certified file not found on server")
+
+    filename = f"approved_{report.uploaded_file.original_filename if report.uploaded_file else 'visual_asset.png'}"
+    return FileResponse(file_path, filename=filename, media_type="image/png")
 
 
 @router.get("/submission/{submission_id}", summary="Get Visual Reports for Submission")
@@ -208,6 +545,7 @@ def get_submission_visual_reports(
     return [
         {
             "report_id": r.id,
+            "submission_id": r.submission_id,
             "dimensions": f"{r.image_width}x{r.image_height}",
             "aspect_ratio": r.aspect_ratio,
             "visual_score": r.visual_score,
@@ -221,6 +559,13 @@ def get_submission_visual_reports(
             "logo_status": r.logo_status,
             "ocr_extracted_text": r.ocr_extracted_text,
             "visual_issues": r.visual_issues,
+            "review_status": r.review_status,
+            "has_corrected_image": bool(r.corrected_image_path and os.path.exists(r.corrected_image_path)),
+            "accepted_corrections": r.accepted_corrections or [],
+            "rejected_corrections": r.rejected_corrections or [],
+            "creator_notes": r.creator_notes,
+            "reviewer_comments": r.reviewer_comments,
+            "is_published": r.is_published,
             "created_at": r.created_at.isoformat(),
         }
         for r in reports
