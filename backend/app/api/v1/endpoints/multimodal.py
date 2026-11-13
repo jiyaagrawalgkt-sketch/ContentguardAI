@@ -384,7 +384,12 @@ def generate_corrected_visual_endpoint(
     corrected_filename = f"{uuid.uuid4().hex[:12]}_corrected_{report.uploaded_file.original_filename}"
     corrected_path = os.path.join(IMAGE_UPLOAD_DIR, corrected_filename)
 
-    accepted = report.accepted_corrections or ["contrast_enhancement"]
+    # If user has accepted specific corrections, respect their choices; otherwise default to all detected issues
+    accepted = report.accepted_corrections
+    if not accepted and report.visual_issues:
+        accepted = [iss.get("id") for iss in report.visual_issues if iss.get("id")]
+    if not accepted:
+        accepted = ["contrast_enhancement"]
 
     res = generate_corrected_visual_asset(
         original_image_path=orig_path,

@@ -405,3 +405,222 @@ def test_scenario_10_unknown_brands_not_fabricated():
     for iss in result["visual_issues"]:
         if iss.get("category") == "logo_integrity":
             assert iss.get("verification_status") != "verified_official_reference"
+
+
+# =========================================================================
+# SCENARIO 11: LG Banner Aspect Ratio Standardization (2.79:1 -> 16:9)
+# =========================================================================
+def test_scenario_11_lg_banner_aspect_ratio_standardization_non_destructive():
+    """
+    LG company logo banner (572x205px, 2.79:1 aspect ratio) standardizes canvas to 16:9
+    with seamless letterboxing, leaving the original LG graphic 100% intact,
+    and never replacing with an alien blue box.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        orig_path = os.path.join(tmpdir, "lg_banner.png")
+        corr_path = os.path.join(tmpdir, "lg_corrected.png")
+
+        # Create synthetic LG banner: 572x205px with dark top/bottom bars, white center band, and LG mark
+        w, h = 572, 205
+        img = Image.new("RGB", (w, h), color=(20, 20, 20))
+        draw = ImageDraw.Draw(img)
+        # White center band
+        draw.rectangle([0, 35, w, 170], fill=(255, 255, 255))
+        # LG Red emblem circle
+        draw.ellipse([80, 50, 160, 130], fill=(196, 18, 48))
+        # Wordmark "LG" in grey
+        draw.rectangle([180, 60, 195, 120], fill=(107, 109, 111))
+        draw.rectangle([180, 110, 215, 120], fill=(107, 109, 111))
+        img.save(orig_path, format="PNG")
+
+        with open(orig_path, "rb") as f:
+            analysis = analyze_visual_asset(f.read(), alt_text="LG electronics corporate banner")
+
+        # Confirm non-standard aspect ratio is detected
+        ratio_issues = [iss for iss in analysis["visual_issues"] if "aspect" in iss.get("type", "")]
+        assert len(ratio_issues) >= 1
+        assert "2.79:1" in ratio_issues[0]["title"] or "2.79:1" in ratio_issues[0]["detected_element"]
+
+        # Apply fix ONLY for aspect ratio
+        res = generate_corrected_visual_asset(
+            original_image_path=orig_path,
+            output_path=corr_path,
+            accepted_corrections=["vis-layout-aspect-ratio"],
+            brand_asset=None,
+            visual_issues=analysis["visual_issues"]
+        )
+
+        assert res["success"] is True
+        assert os.path.exists(corr_path)
+
+        corr_img = Image.open(corr_path)
+        cw, ch = corr_img.size
+        new_ratio = cw / ch
+        # Must be standard 16:9 landscape format (approx 1.778:1)
+        assert 1.70 <= new_ratio <= 1.85
+        assert cw == 572
+        assert ch == 321 or ch == 322
+
+        # Verify NO LinkedIn Blue (#0A66C2) was injected
+        corr_pixels = list(corr_img.getdata())
+        linkedin_blue = (10, 102, 194)
+        alien_pixels = sum(
+            1 for p in corr_pixels
+            if (abs(p[0] - linkedin_blue[0]) + abs(p[1] - linkedin_blue[1]) + abs(p[2] - linkedin_blue[2])) < 40
+        )
+        assert alien_pixels == 0, "No alien LinkedIn Blue box should be injected into LG banner!"
+
+        # Independent verification check
+        audit = verify_corrected_visual_asset(
+            original_image_path=orig_path,
+            corrected_image_path=corr_path,
+            brand_name="LG",
+            visual_issues=analysis["visual_issues"],
+            accepted_corrections=["vis-layout-aspect-ratio"]
+        )
+        assert audit["passed"] is True
+        assert audit["status"] == "verified"
+
+
+# =========================================================================
+# SCENARIO 12: Apple Logo in Card Corrected Without Canvas Wiping
+# =========================================================================
+def test_scenario_12_apple_logo_in_card_corrected_without_canvas_wiping():
+    """
+    Apple logo inside a white rounded card on a blue outer background:
+    Distorted logo is surgically corrected inside the card, while the outer blue frame
+    and white card remain 100% intact (no whole-canvas wiping).
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        orig_path = os.path.join(tmpdir, "apple_card.png")
+        corr_path = os.path.join(tmpdir, "apple_corrected.png")
+
+        # 331x319px canvas with outer dark blue border, white card, and distorted Apple mark
+        w, h = 331, 319
+        img = Image.new("RGB", (w, h), color=(16, 36, 48))
+        draw = ImageDraw.Draw(img)
+        # White rounded card
+        draw.rounded_rectangle([18, 18, 313, 301], radius=24, fill=(251, 251, 251))
+        # Stretched Apple mark (aspect ratio 1.04:1)
+        draw.ellipse([90, 75, 240, 220], fill=(0, 0, 0))
+        img.save(orig_path, format="PNG")
+
+        with open(orig_path, "rb") as f:
+            analysis = analyze_visual_asset(f.read(), alt_text="Apple certified device accessory")
+
+        # Apply logo distortion correction
+        res = generate_corrected_visual_asset(
+            original_image_path=orig_path,
+            output_path=corr_path,
+            accepted_corrections=["vis-logo-distortion-apple"],
+            brand_asset=None,
+            visual_issues=analysis["visual_issues"],
+            selected_variant="primary"
+        )
+
+        assert res["success"] is True
+        assert os.path.exists(corr_path)
+
+        corr_img = Image.open(corr_path)
+        assert corr_img.size == (331, 319)
+
+        # Inspect unaffected card background: white card interior must STILL BE WHITE, not wiped to solid blue!
+        card_interior_pixel = corr_img.getpixel((50, 50))
+        assert card_interior_pixel[0] > 240 and card_interior_pixel[1] > 240 and card_interior_pixel[2] > 240, (
+            f"White card interior was wiped out! Expected near white, got {card_interior_pixel}"
+        )
+
+        # Inspect outer frame: must STILL BE DARK BLUE
+        outer_frame_pixel = corr_img.getpixel((5, 5))
+        assert outer_frame_pixel[0] < 30 and outer_frame_pixel[1] < 50, (
+            f"Outer frame was altered! Got {outer_frame_pixel}"
+        )
+
+        # Independent verification check
+        audit = verify_corrected_visual_asset(
+            original_image_path=orig_path,
+            corrected_image_path=corr_path,
+            brand_name="Apple",
+            visual_issues=analysis["visual_issues"],
+            accepted_corrections=["vis-logo-distortion-apple"]
+        )
+        assert audit["passed"] is True
+        assert audit["status"] == "verified"
+
+
+# =========================================================================
+# SCENARIO 13: Alien Brand Intrusion Guard Blocks Foreign Brand Injection
+# =========================================================================
+def test_scenario_13_alien_brand_intrusion_guard_fails_on_foreign_color():
+    """Verification independently detects foreign brand injection (e.g. LinkedIn Blue in an LG visual) and FAILS."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        orig_path = os.path.join(tmpdir, "lg_orig.png")
+        corr_path = os.path.join(tmpdir, "lg_bad_alien.png")
+
+        # Original LG image
+        img = Image.new("RGB", (400, 400), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.ellipse([50, 50, 350, 350], fill=(196, 18, 48))
+        img.save(orig_path, format="PNG")
+
+        # Contaminated corrected image with an alien LinkedIn blue square injected
+        corr_img = Image.new("RGB", (400, 400), color=(255, 255, 255))
+        corr_draw = ImageDraw.Draw(corr_img)
+        corr_draw.rounded_rectangle([100, 100, 300, 300], radius=20, fill=(10, 102, 194))  # LinkedIn Blue injected!
+        corr_img.save(corr_path, format="PNG")
+
+        audit = verify_corrected_visual_asset(
+            original_image_path=orig_path,
+            corrected_image_path=corr_path,
+            brand_name="LG",
+            visual_issues=[{"id": "vis-logo-distortion-lg", "category": "logo_integrity", "brand_key": "lg"}]
+        )
+
+        # Must FAIL due to alien brand intrusion!
+        assert audit["passed"] is False
+        assert audit["status"] == "failed"
+        alien_checks = [c for c in audit["checks"] if "Alien Brand Intrusion Guard" in c["name"]]
+        assert len(alien_checks) >= 1
+        assert alien_checks[0]["passed"] is False
+
+
+# =========================================================================
+# SCENARIO 14: Non-Destructive Verification Catches Damaged Canvas Elements
+# =========================================================================
+def test_scenario_14_damaged_canvas_fails_preservation_audit():
+    """Verification FAILS if unrelated background or artwork was wiped out during correction."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        orig_path = os.path.join(tmpdir, "art_orig.png")
+        corr_path = os.path.join(tmpdir, "art_wiped.png")
+
+        # Complex artwork with patterned background
+        img = Image.new("RGB", (500, 500), color=(255, 240, 200))
+        draw = ImageDraw.Draw(img)
+        # Background elements
+        draw.rectangle([20, 20, 480, 150], fill=(30, 60, 90))
+        draw.rectangle([20, 350, 480, 480], fill=(90, 30, 60))
+        # Logo in center
+        draw.ellipse([200, 200, 300, 300], fill=(0, 0, 0))
+        img.save(orig_path, format="PNG")
+
+        # Flawed correction engine wiped the whole canvas to solid black
+        corr_img = Image.new("RGB", (500, 500), color=(0, 0, 0))
+        corr_img.save(corr_path, format="PNG")
+
+        audit = verify_corrected_visual_asset(
+            original_image_path=orig_path,
+            corrected_image_path=corr_path,
+            brand_name="Apple",
+            visual_issues=[{
+                "id": "vis-logo-apple",
+                "category": "logo_integrity",
+                "brand_key": "apple",
+                "region": {"x": 40.0, "y": 40.0, "width": 20.0, "height": 20.0}
+            }]
+        )
+
+        assert audit["passed"] is False
+        preservation_checks = [c for c in audit["checks"] if "Unaffected Canvas Area Preservation" in c["name"]]
+        assert len(preservation_checks) >= 1
+        assert preservation_checks[0]["passed"] is False
+
