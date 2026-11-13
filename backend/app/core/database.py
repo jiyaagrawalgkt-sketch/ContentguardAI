@@ -3,10 +3,25 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
+from pathlib import Path
+
 # Configure database URL (handle Render/Heroku 'postgres://' compatibility)
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
+elif db_url.startswith("sqlite"):
+    # Ensure SQLite URL points to canonical absolute database file path
+    # Regardless of whether process was launched from repo root or backend/ folder
+    raw_path = db_url.replace("sqlite:///", "")
+    clean_path = raw_path.lstrip("./")
+    cwd = Path.cwd()
+    if (cwd / "backend" / "contentguard.db").exists():
+        canon = (cwd / "backend" / "contentguard.db").resolve()
+    elif (cwd / "contentguard.db").exists():
+        canon = (cwd / "contentguard.db").resolve()
+    else:
+        canon = (Path(__file__).resolve().parent.parent.parent / "contentguard.db")
+    db_url = f"sqlite:///{canon.as_posix()}"
 
 # Configure SQLite or PostgreSQL connection arguments
 connect_args = {}
@@ -88,6 +103,19 @@ def init_db():
                         conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN logo_hash VARCHAR(128)"))
                     if "wcag_min_contrast" not in asset_cols:
                         conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN wcag_min_contrast FLOAT DEFAULT 4.5"))
+
+                # extracted_claims
+                cursor.execute("PRAGMA table_info(extracted_claims)")
+                claim_cols = {row[1] for row in cursor.fetchall()}
+                if claim_cols:
+                    if "sentence" not in claim_cols:
+                        conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN sentence TEXT"))
+                    if "claim_category" not in claim_cols:
+                        conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN claim_category VARCHAR(50)"))
+                    if "analysis_version" not in claim_cols:
+                        conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN analysis_version INTEGER DEFAULT 1"))
+                    if "analyzed_at" not in claim_cols:
+                        conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN analyzed_at DATETIME"))
                 cursor.close()
             else:
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'brand_voice'"))
@@ -98,6 +126,10 @@ def init_db():
                 conn.execute(sa_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
                 conn.execute(sa_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(64)"))
                 conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS neutral_color_hex VARCHAR(7)"))
+                conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN IF NOT EXISTS sentence TEXT"))
+                conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN IF NOT EXISTS claim_category VARCHAR(50)"))
+                conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN IF NOT EXISTS analysis_version INTEGER DEFAULT 1"))
+                conn.execute(sa_text("ALTER TABLE extracted_claims ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"))
                 conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS color_palette_json JSONB"))
                 conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS logo_hash VARCHAR(128)"))
                 conn.execute(sa_text("ALTER TABLE brand_assets ADD COLUMN IF NOT EXISTS wcag_min_contrast FLOAT DEFAULT 4.5"))

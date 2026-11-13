@@ -189,71 +189,89 @@ def search_knowledge_chunks(
 # --- 5. Claim Extraction ---
 
 CLAIM_PATTERNS = [
-    # 1. SLA, Availability & Uptime Metrics
+    # 1. Supremacy & Comparative Claims (evaluate before guarantees to classify exclusive platform supremacy)
     (
-        r"\b(?:9\d(?:\.\d+)?%|100%)\s*(?:uptime|availability|sla|reliability)\b|\b(?:uptime|availability)\s*(?:of\s+)?(?:9\d(?:\.\d+)?%|100%)\b|\b(?:sub-[a-z]+|zero-downtime)\s*(?:latency|uptime|availability)\b",
-        "sla_uptime",
-        "high"
-    ),
-    # 2. Customer Support & Service Coverage
-    (
-        r"\b(?:24\s*/\s*7|24x7|round-the-clock)\s*(?:customer\s+support|support|monitoring|assistance|availability)?\b",
-        "customer_support",
-        "medium"
-    ),
-    # 3. Compliance, Certifications & Standards (e.g. SOC 2 Type II, ISO 27001, HIPAA)
-    (
-        r"\b(?:SOC\s*2(?:\s*Type\s*(?:I|II|1|2))?|ISO\s*\d{4,5}(?:-\d+)?|GDPR|HIPAA|PCI-?DSS|FedRAMP|HITRUST)\b(?:\s*(?:compliant|certified|accredited|audit))?|\b(?:certified|accredited)\s+under\s+[A-Za-z0-9\s-]+\b",
-        "certification",
-        "critical"
-    ),
-    # 4. Numerical & Percentage Multipliers (e.g. "reduces processing time by 40%", "boosts throughput by 3x")
-    (
-        r"\b(?:increases?|improves?|reduces?|boosts?|accelerates?|grows?|saves?)\s+[\w\s]{0,40}?\s*(?:by\s+|up\s+to\s+)?(\d+(?:\.\d+)?%|\d+(?:\.\d+)?x)(?!\w)",
-        "performance_multiplier",
-        "high"
-    ),
-    # 5. Customer Scale & Enterprise Adoption (e.g. "more than 500 enterprise customers", "spans over 50,000 active enterprises")
-    (
-        r"\b(?:more\s+than|over|spans?\s+over|serving|serves?|trusted\s+by)?\s*(?:\d{1,3}(?:,\d{3})+|\d+)\+?\s+(?:\w+\s+){0,2}(?:enterprise\s+customers?|enterprises?|customers?|clients?|companies?|users?|teams?|servers?|nodes?)\b",
-        "scale_metric",
-        "medium"
-    ),
-    # 6. Company History & Corporate Milestones (e.g. "established in 2018", "founded in 2020")
-    (
-        r"\b(?:established|founded|incorporated|started|launched)\s+in\s+\d{4}\b|\bheadquartered\s+in\s+[A-Za-z\s,]+\b",
-        "company_history",
-        "medium"
-    ),
-    # 7. Supremacy & Superlative Claims (e.g. "the only platform", "fastest platform in the industry", "industry-leading")
-    (
-        r"\b(?:the\s+)?(?:fastest|most\s+secure|industry-leading|number\s+one|#1|best-in-class|unrivaled|unmatched|first-ever|only\s+platform)\b(?:\s+[\w-]+){0,3}",
+        r"\b(?:the\s+)?(?:fastest|most\s+secure|industry-leading|number\s+one|#1|best-in-class|unrivaled|unmatched|first-ever|only\s+platform)\b(?:\s+[\w-]+){0,4}|\b(?:outperforms?|outperformed|surpasses?)\s+legacy\s+[\w\s]{1,30}\b|\b(?:traditional\s+[\w\s]{1,20}\s+completely\s+unnecessary|nobody\s+else\s+can\s+compete|best\s+solution\s+in\s+the\s+(?:entire\s+)?world)\b",
         "supremacy_claim",
+        "Supremacy & Comparisons",
         "high"
     ),
-    # 8. Guaranteed / Zero-Risk Absolutes (e.g. "guarantees complete data protection", "zero vulnerabilities")
+    # 2. Absolute Guarantees & Zero-Risk Claims
     (
-        r"\b(?:guarantees?|guaranteed|assures?|ensures?|promises?)\s+(?:complete|total|100%|zero|unconditional|full)\s+[\w\s]{1,30}\b|\b(?:100%\s+(?:bug-free|guaranteed)|zero\s+vulnerabilities|never\s+(?:fails|crashes|downtime)|completely\s+unhackable)\b",
+        r"\b(?:guarantees?|guaranteed|assures?|ensures?|promises?)\s+(?:complete|total|100%|zero|unconditional|full|absolute)\s+[\w\s-]{1,40}\b|\b(?:100%\s+(?:bug-free|guaranteed|safe|secure)|zero\s+(?:vulnerabilities|risk|incidents|downtime)|never\s+(?:fails|crashes|downtime|breached)|completely\s+(?:unhackable|secure|immune)|no\s+hacker\s+in\s+the\s+world)\b",
         "guarantee_absolute",
+        "Guarantees & Absolutes",
         "critical"
     ),
-    # 9. Product Capabilities & Real-Time Features (e.g. "supports real-time threat detection")
+    # 3. SLA, Availability, Latency & Reliability
     (
-        r"\b(?:supports?|provides?|delivers?|features?|enables?)\s+(?:real-time|automated|continuous|sub-second)\s+[\w\s-]+\b",
-        "product_capability",
+        r"\b(?:9\d(?:\.\d+)?%|100%)\s*(?:uptime|availability|sla|reliability)\b|\b(?:uptime|availability|sla)\s*(?:of\s+)?(?:9\d(?:\.\d+)?%|100%)\b|\b(?:sub-[a-z]+|sub-\d+\s*(?:ms|seconds?)|zero-downtime)\s*(?:latency|uptime|availability|response\s+time)?\b|\b(?:uptime|availability)\s+sla\b",
+        "sla_uptime",
+        "SLA & Availability",
         "high"
     ),
-    # 10. Cost & Operational Metrics (e.g. "reduces operational costs", "cuts overhead")
+    # 4. Compliance, Certifications & Standards (SOC 2, ISO 27001, GDPR, HIPAA, etc.)
     (
-        r"\b(?:reduces?|lowers?|cuts?|eliminates?|saves?)\b(?:\s+\w+){0,3}\s+(?:operational\s+costs?|costs?|expenses?|overhead|latency|errors?|manual\s+\w+)\b",
-        "cost_performance",
+        r"\b(?:SOC\s*[-]?\s*2(?:\s*Type\s*(?:I|II|1|2))?|ISO\s*\d{4,5}(?:-\d+)?|GDPR|HIPAA|PCI-?DSS|FedRAMP|HITRUST|NIST|CCPA)\b(?:\s*(?:compliant|certified|accredited|audit|attestation|standards?))?|\b(?:AES-?256|end-to-end\s+encryption|zero-trust|mfa|two-factor)\s*(?:encryption|architecture|security|verification|infrastructure)?\b|\b(?:certified|accredited|compliant)\s+(?:under|with)\s+[A-Za-z0-9\s-]+\b",
+        "certification",
+        "Security & Compliance",
+        "critical"
+    ),
+    # 5. Numerical & Percentage Multipliers (past, present, future tenses: improved by 500%, reduced to zero, etc.)
+    (
+        r"\b(?:increases?|increased|increasing|improves?|improved|improving|reduces?|reduced|reducing|boosts?|boosted|boosting|accelerates?|accelerated|accelerating|grows?|grew|grown|growing|saves?|saved|saving|cuts?|cutting)\b[\w\s]{0,40}?\b(?:by\s+|up\s+to\s+|to\s+)?(\d+(?:\.\d+)?%|\d+(?:\.\d+)?x|zero|half|\d+\s*(?:times|fold))(?!\w)",
+        "performance_multiplier",
+        "Performance & Metrics",
         "high"
     ),
-    # 11. Financial & Scale Metrics (e.g. "$100M ARR", "$50M funding")
+    # 6. Customer Scale, Enterprise Adoption & Client Accounts
     (
-        r"(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:[KMBkmb]|million|billion|ARR|MRR)?\b",
-        "financial_metric",
+        r"\b(?:worked\s+with|trusted\s+by|serving|serves?|spans?\s+over|more\s+than|over)\s+(?:\d{1,3}(?:,\d{3})+|\d+|one|two|three|four|five|ten|hundreds?|thousands?)\+?\s+(?:[\w-]+\s+)?(?:enterprise\s+customers?|enterprises?|banking\s+clients?|customers?|clients?|companies?|users?|teams?|nodes?|servers?)\b|\b(?:\d{1,3}(?:,\d{3})+|\d+)\+?\s+(?:enterprise\s+customers?|enterprises?|banking\s+clients?|active\s+enterprises?)\b",
+        "scale_metric",
+        "Customer & Scale",
         "medium"
+    ),
+    # 7. Corporate History & Milestones
+    (
+        r"\b(?:established|founded|incorporated|started|launched)\s+in\s+\d{4}\b|\bheadquartered\s+in\s+[A-Za-z\s,]+\b|\bexpanded\s+to\s+\d+\s+(?:countries|regions|locations|offices)\b",
+        "company_history",
+        "Company Information",
+        "medium"
+    ),
+    # 8. Processing Capacity & Product Capabilities
+    (
+        r"\bprocesses?\s+(?:\d{1,3}(?:,\d{3})+|\d+)\s+[\w\s]{1,30}\s+per\s+(?:minute|second|hour|day)\b|\b(?:supports?|provides?|delivers?|features?|enables?|includes?|offers?)\s+(?:real-time|automated|continuous|sub-second|multi-modal|autonomous|zero-trust)\s+[\w\s-]{3,40}\b|\b(?:automates?|orchestrates?)\s+[\w\s]{1,30}\s+(?:audits?|compliance|governance|verification|workflows?)\b",
+        "product_capability",
+        "Product Capabilities",
+        "high"
+    ),
+    # 9. Product Specifications & Architecture
+    (
+        r"\b(?:natively\s+)?(?:parses?|supports?|ingests?|accepts?)\s+(?:PDF|DOCX|TXT|CSV|PNG|JPG|Markdown|JSON|XML)(?:\s*,\s*(?:PDF|DOCX|TXT|CSV|PNG|JPG|Markdown|JSON|XML|and\s+[\w]+))*\s*(?:documents?|files?|formats?)?\b|\b(?:production\s+server|api\s+endpoint|database|backend)\s+(?:is\s+)?(?:hosted\s+at|located\s+at|connected\s+to)\s+[A-Za-z0-9.-]+\.[a-z]{2,}\b|\b(?:built\s+on|powered\s+by|integrates\s+with)\s+[A-Za-z0-9\s-]{3,30}\s+(?:architecture|platform|stack|api|database)\b",
+        "product_specification",
+        "Specifications & Architecture",
+        "medium"
+    ),
+    # 10. Financial & Commercial Metrics
+    (
+        r"(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:[KMBkmb]|million|billion|ARR|MRR)?\b|\b(?:generated|produced|earned|closed)\s+[\w\s]{0,20}?(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:million|billion|k)?\b|\b(?:profit\s+margin|margin|revenue\s+growth|roi)\s+(?:of\s+)?\d+(?:\.\d+)?%\b|\b(?:reduces?|lowered|cuts?|saves?)\s+(?:operational\s+costs?|overhead|expenses?)\s*(?:by\s+\d+(?:\.\d+)?%)?\b",
+        "financial_metric",
+        "Financial & Commercial",
+        "medium"
+    ),
+    # 11. Turnaround, Deadlines & Customer Support
+    (
+        r"\b(?:resolved|delivered|completed|turned\s+around)\b[\w\s]{0,25}?\b(?:within|in)\s+(?:\d+|two|three|twenty-four|24)\s*(?:hours?|minutes?|days?)\b|\b(?:24\s*/\s*7|24x7|round-the-clock)\s*(?:customer\s+support|support|monitoring|assistance|availability)?\b|\b(?:within\s+\d+\s*(?:hours?|days?|business\s+days?)|scheduled\s+for\s+Q[1-4]\s*\d{4})\b",
+        "customer_support",
+        "Deadlines & Support",
+        "medium"
+    ),
+    # 12. Research Findings & Empirical Benchmark Claims
+    (
+        r"\b(?:internal\s+(?:security\s+)?reports?|beta\s+testing|studies|benchmarks?)\s+(?:revealed|showed|confirmed|demonstrated|indicated)\s+that\b",
+        "research_findings",
+        "Research & Empirical Findings",
+        "high"
     ),
 ]
 
@@ -268,33 +286,66 @@ def extract_factual_claims(content: str) -> List[Dict[str, Any]]:
         return []
 
     claims = []
-    sentences = re.split(r"(?<=[.!?])\s+", content.strip())
+    # Segment sentences preserving context
+    raw_sentences = re.split(r"(?<=[.!?])\s+|\n+", content.strip())
+    seen_claim_texts = set()
 
-    for sentence in sentences:
+    for sentence in raw_sentences:
         s_clean = sentence.strip()
-        if not s_clean or len(s_clean) < 6:
+        if not s_clean or len(s_clean) < 8:
             continue
 
-        for pattern, claim_type, default_severity in CLAIM_PATTERNS:
+        # Inquiries (questions) are not factual claims
+        if s_clean.endswith("?"):
+            continue
+
+        # Filter out email headers, greetings, sign-offs, and pure calls-to-action
+        lower_s = s_clean.lower()
+        if re.match(r"^(?:subject:|header:|subheader:|title:|dear\s+|hey\s+|hi\s+|hello\s+|contact\s+|sales@)", lower_s):
+            continue
+        if re.match(r"^(?:don't\s+wait|don't\s+miss|get\s+started|sign\s+up|click\s+here)\b", lower_s):
+            continue
+
+        for pattern, claim_type, category_name, default_severity in CLAIM_PATTERNS:
             match = re.search(pattern, s_clean, re.IGNORECASE)
             if match:
                 matched_str = match.group(0).strip()
-                # Clean trailing punctuation from matched string
-                matched_str = re.sub(r"[.,;!?]+$", "", matched_str).strip()
+                matched_str = re.sub(r"[.,;!?:]+$", "", matched_str).strip()
 
-                # One primary factual claim assertion per sentence
-                if any(c["sentence"] == s_clean for c in claims):
-                    continue
+                if matched_str and matched_str.lower() not in seen_claim_texts:
+                    seen_claim_texts.add(matched_str.lower())
+                    claims.append({
+                        "claim_text": matched_str,
+                        "sentence": s_clean,
+                        "claim_type": claim_type,
+                        "claim_category": category_name,
+                        "severity": default_severity,
+                    })
 
-                claims.append({
-                    "claim_text": matched_str,
-                    "sentence": s_clean,
-                    "claim_type": claim_type,
-                    "severity": default_severity,
-                })
-                break
+                    # If sentence matches a full superlative or guarantee assertion, prioritize it
+                    if claim_type in ["supremacy_claim", "guarantee_absolute"]:
+                        break
 
     return claims
+
+
+def _normalize_text(text: str) -> str:
+    """Normalize whitespace, lowercases, removes punctuation and comma formatting."""
+    if not text:
+        return ""
+    # Strip comma separators in numbers (12,000 -> 12000)
+    cleaned = re.sub(r"(\d),(\d)", r"\1\2", text.lower())
+    # Normalize hyphens and underscores to space (soc-2 -> soc 2)
+    cleaned = re.sub(r"[-_]+", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _extract_numbers(text: str) -> List[str]:
+    """Extract normalized numbers without formatting commas."""
+    if not text:
+        return []
+    cleaned = re.sub(r"(\d),(\d)", r"\1\2", text)
+    return re.findall(r"\b\d+(?:\.\d+)?\b", cleaned)
 
 
 # --- 6. Evidence Verification Engine ---
@@ -330,6 +381,7 @@ def verify_claims_against_evidence(
         claim_text = item["claim_text"]
         sentence = item["sentence"]
         claim_type = item["claim_type"]
+        claim_category = item.get("claim_category") or claim_type.replace("_", " ").title()
         severity = item["severity"]
 
         best_status = ClaimVerificationStatus.UNSUPPORTED.value
@@ -343,96 +395,103 @@ def verify_claims_against_evidence(
         suggested_correction = None
         recommended_action = "Verify"
 
-        # Check against ApprovedFacts first
-        fact_match = None
-        claim_lower = claim_text.lower()
-        stmt_lower = sentence.lower()
+        # Check against ApprovedFacts Vault
+        best_fact = None
+        best_fact_score = 0
+
+        claim_norm = _normalize_text(claim_text)
+        sentence_norm = _normalize_text(sentence)
+        claim_nums = _extract_numbers(claim_text)
+
+        claim_words = [w for w in re.findall(r"[a-z0-9]{3,}", claim_norm) if w not in {"with", "that", "this", "from", "have", "more", "than", "over", "uses", "provides", "delivers", "offers", "engine", "software", "platform"}]
 
         for fact in approved_facts:
-            topic_lower = fact.topic.lower()
-            fact_stmt_lower = (fact.statement or "").lower()
+            fact_stmt_norm = _normalize_text(fact.statement or "")
+            fact_topic_norm = _normalize_text(fact.topic or "")
 
-            # 1. Exact topic or number match
+            fact_nums = _extract_numbers(fact.statement or "")
+            verified_nums = []
             if fact.verified_numbers and isinstance(fact.verified_numbers, dict):
-                num_matched = False
-                for k, v in fact.verified_numbers.items():
-                    v_str = str(v).strip()
-                    if not v_str:
-                        continue
-                    # Match exact numerical/token boundary rather than character substring
-                    if re.search(rf"\b{re.escape(v_str)}(?!\d)", stmt_lower) or re.search(rf"\b{re.escape(v_str)}(?!\d)", claim_lower):
-                        num_matched = True
-                        break
-                if num_matched:
-                    fact_match = fact
-                    break
+                for v in fact.verified_numbers.values():
+                    verified_nums.extend(_extract_numbers(str(v)))
+            all_fact_nums = set(fact_nums + verified_nums)
 
-            # 2. Direct substring overlap
-            if claim_lower in fact_stmt_lower or fact_stmt_lower in stmt_lower:
-                fact_match = fact
-                break
+            # Substantive overlap check:
+            has_direct_overlap = bool(claim_norm and (claim_norm in fact_stmt_norm or fact_stmt_norm in claim_norm))
+            has_num_overlap = bool(claim_nums and any(cn in all_fact_nums for cn in claim_nums))
+            overlapping_words = [w for w in claim_words if w in fact_stmt_norm or w in fact_topic_norm]
 
-            # 3. Topic words overlap
-            t_words = [w for w in re.findall(r"\w{3,}", topic_lower) if w not in ["and", "for", "the", "cloud"]]
-            if t_words and all(w in stmt_lower for w in t_words):
-                fact_match = fact
-                break
+            # If no words, direct substring, or numbers match, this fact cannot corroborate this claim
+            if not (has_direct_overlap or has_num_overlap or len(overlapping_words) >= 1):
+                continue
 
-            # 4. Domain group matching (SLA/uptime/availability, latency/reduction, support/24/7)
-            domain_groups = [
-                {"uptime", "availability", "sla"},
-                {"latency", "throughput", "speed", "reduction"},
-                {"support", "assistance", "customer support", "24/7"},
-                {"soc", "iso", "compliance", "cert", "certification"},
-                {"customer base", "clients", "customer scale"},
-                {"history", "founded", "established"},
-                {"capacity", "processing"},
-                {"format", "pdf", "docx"}
-            ]
-            domain_matched = False
-            for grp in domain_groups:
-                if any(w in topic_lower for w in grp) and any(w in stmt_lower or w in claim_lower for w in grp):
-                    fact_match = fact
-                    domain_matched = True
-                    break
-            if domain_matched:
-                break
+            score = 0
+            if has_direct_overlap:
+                score += 100
+            if has_num_overlap:
+                score += 80
+            score += len(overlapping_words) * 25
 
-        if fact_match:
-            source_doc_id = None  # FK is to knowledge_documents; ApprovedFact is cited by name/reference
-            source_doc_name = fact_match.reference_url_or_doc or f"Approved Fact Vault: {fact_match.topic}"
-            source_passage = fact_match.statement
-            source_validity_date = fact_match.expiry_date
+            # Category bonus only applied when substantive overlap already exists
+            cat_norm = _normalize_text(claim_category)
+            if cat_norm and (cat_norm in fact_topic_norm or fact_topic_norm in cat_norm):
+                score += 30
+
+            if score > best_fact_score:
+                best_fact_score = score
+                best_fact = fact
+
+        # Require a meaningful match threshold (>= 25)
+        if best_fact and best_fact_score >= 25:
+            source_doc_id = None
+            source_doc_name = best_fact.reference_url_or_doc or f"Approved Fact Vault: {best_fact.topic}"
+            source_passage = best_fact.statement
+            source_validity_date = best_fact.expiry_date
 
             # Check expiration
-            if fact_match.expiry_date and fact_match.expiry_date < today:
+            if best_fact.expiry_date and best_fact.expiry_date < today:
                 best_status = ClaimVerificationStatus.OUTDATED.value
-                retrieved_evidence = f"Topic: {fact_match.topic}. Statement: {fact_match.statement}"
-                explanation = f"Supporting fact for '{fact_match.topic}' expired on {fact_match.expiry_date.isoformat()}."
+                retrieved_evidence = f"Topic: {best_fact.topic}. Statement: {best_fact.statement}"
+                explanation = f"Supporting fact for '{best_fact.topic}' expired on {best_fact.expiry_date.isoformat()}."
                 suggested_correction = "Renew approval or update claim to reflect current validated data."
                 recommended_action = "Update_Source"
             else:
-                # Determine if claim supports or conflicts
-                is_conflicting = False
-                # If numbers are present, compare metrics
-                claim_nums = re.findall(r"\d+(?:\.\d+)?", claim_text)
-                fact_nums = re.findall(r"\d+(?:\.\d+)?", fact_match.statement)
+                # Check for numerical or factual conflict
+                fact_nums = _extract_numbers(best_fact.statement or "")
+                verified_nums = []
+                if best_fact.verified_numbers and isinstance(best_fact.verified_numbers, dict):
+                    for v in best_fact.verified_numbers.values():
+                        verified_nums.extend(_extract_numbers(str(v)))
+                all_fact_nums = set(fact_nums + verified_nums)
 
-                if claim_nums and fact_nums:
-                    # If the claim states a specific number, does it match the fact's number?
-                    if claim_nums[0] != fact_nums[0]:
+                is_conflicting = False
+                if claim_nums:
+                    # If numbers are asserted and not verified by the approved fact
+                    if not all(cn in all_fact_nums for cn in claim_nums):
                         is_conflicting = True
+
+                fact_stmt_norm = _normalize_text(best_fact.statement or "")
+                has_corroboration = (
+                    (claim_norm and claim_norm in fact_stmt_norm) or
+                    (claim_nums and any(cn in all_fact_nums for cn in claim_nums)) or
+                    (overlapping_words and all(w in fact_stmt_norm for w in claim_words))
+                )
 
                 if is_conflicting:
                     best_status = ClaimVerificationStatus.CONFLICTING.value
-                    retrieved_evidence = f"Approved Fact [{fact_match.topic}]: {fact_match.statement}"
-                    explanation = f"Claim statement asserts '{claim_text}', but official approved fact states '{fact_match.statement}'."
-                    suggested_correction = f"Change statement to align with approved fact: '{fact_match.statement}'."
+                    retrieved_evidence = f"Approved Fact [{best_fact.topic}]: {best_fact.statement}"
+                    explanation = f"Claim statement asserts '{claim_text}', but official approved fact states '{best_fact.statement}'."
+                    suggested_correction = f"Change statement to align with approved fact: '{best_fact.statement}'."
                     recommended_action = "Replace"
+                elif not has_corroboration:
+                    best_status = ClaimVerificationStatus.UNSUPPORTED.value
+                    explanation = f"No approved organizational documentation corroborates the assertion '{claim_text}' in the Knowledge Base."
+                    suggested_correction = f"Provide verified research citation or remove unverified claim '{claim_text}'."
+                    recommended_action = "Remove"
                 else:
                     best_status = ClaimVerificationStatus.SUPPORTED.value
-                    retrieved_evidence = f"Approved Fact [{fact_match.topic}]: {fact_match.statement}"
-                    explanation = f"Corroborated by organization approved fact [{fact_match.topic}]: '{fact_match.statement}'."
+                    retrieved_evidence = f"Approved Fact [{best_fact.topic}]: {best_fact.statement}"
+                    explanation = f"Corroborated by organization approved fact [{best_fact.topic}]: '{best_fact.statement}'."
                     recommended_action = "Approve"
 
         else:
@@ -486,6 +545,7 @@ def verify_claims_against_evidence(
         verified_claims.append({
             "claim_text": claim_text,
             "claim_type": claim_type,
+            "claim_category": claim_category,
             "sentence": sentence,
             "verification_status": best_status,
             "severity": severity,

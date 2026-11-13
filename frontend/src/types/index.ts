@@ -30,7 +30,9 @@ export interface ExtractedClaim {
   id: string;
   claim_text: string;
   claim_type: string;
+  claim_category?: string;
   sentence?: string;
+  analysis_version?: number;
   verification_status: "supported" | "unsupported" | "conflicting" | "outdated" | "unverified";
   severity: "critical" | "high" | "medium" | "low";
   confidence: number;
@@ -40,6 +42,7 @@ export interface ExtractedClaim {
   source_validity_date?: string;
   suggested_correction?: string;
   recommended_action?: string;
+  created_at?: string;
 }
 
 export interface EvidenceGraphData {

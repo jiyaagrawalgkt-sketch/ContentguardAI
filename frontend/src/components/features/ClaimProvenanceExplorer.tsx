@@ -38,6 +38,14 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
     if (submissionId) {
       fetchClaims();
     }
+
+    const handleClaimsUpdated = (e: any) => {
+      if (!e.detail || e.detail.submissionId === submissionId) {
+        fetchClaims();
+      }
+    };
+    window.addEventListener("claims-reverified", handleClaimsUpdated);
+    return () => window.removeEventListener("claims-reverified", handleClaimsUpdated);
   }, [submissionId]);
 
   const fetchClaims = async () => {
@@ -61,6 +69,9 @@ export function ClaimProvenanceExplorer({ submissionId }: ClaimProvenanceProps) 
       const res = await api.post(`/evidence/reverify/${submissionId}`);
       const updated = res.data.claims || [];
       setClaims(updated);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("claims-reverified", { detail: { submissionId } }));
+      }
     } catch (e: any) {
       console.error(e);
       setError(e.response?.data?.detail || "Re-verification failed. Please try again.");

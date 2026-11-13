@@ -63,13 +63,20 @@ def verify_submission_evidence(
     db.query(ExtractedClaim).filter(ExtractedClaim.submission_id == submission_id).delete()
 
     persisted_claims = []
+    current_ver_num = 1
+    if submission.versions:
+        current_ver_num = submission.versions[-1].version_number
+
     for item in verified_results:
         claim_obj = ExtractedClaim(
             id=str(uuid.uuid4()),
             submission_id=submission_id,
             organization_id=current_user.organization_id,
             claim_text=item["claim_text"],
+            sentence=item.get("sentence"),
             claim_type=item["claim_type"],
+            claim_category=item.get("claim_category") or item["claim_type"].replace("_", " ").title(),
+            analysis_version=current_ver_num,
             verification_status=item["verification_status"],
             severity=item["severity"],
             confidence=item["confidence"],
@@ -110,7 +117,10 @@ def verify_submission_evidence(
             {
                 "id": c.id,
                 "claim_text": c.claim_text,
+                "sentence": c.sentence,
                 "claim_type": c.claim_type,
+                "claim_category": c.claim_category or c.claim_type.replace("_", " ").title(),
+                "analysis_version": c.analysis_version or 1,
                 "verification_status": c.verification_status,
                 "severity": c.severity,
                 "confidence": c.confidence,
@@ -120,6 +130,7 @@ def verify_submission_evidence(
                 "source_validity_date": c.source_validity_date.isoformat() if c.source_validity_date else None,
                 "suggested_correction": c.suggested_correction,
                 "recommended_action": c.recommended_action,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
             }
             for c in persisted_claims
         ]
@@ -160,13 +171,17 @@ def get_submission_claims(
         if content_body and content_body.strip():
             raw_claims = extract_factual_claims(content_body)
             verified = verify_claims_against_evidence(raw_claims, current_user.organization_id, db)
+            ver_num = submission.versions[-1].version_number if submission.versions else 1
             for item in verified:
                 c = ExtractedClaim(
                     id=str(uuid.uuid4()),
                     submission_id=submission_id,
                     organization_id=current_user.organization_id,
                     claim_text=item["claim_text"],
+                    sentence=item.get("sentence"),
                     claim_type=item["claim_type"],
+                    claim_category=item.get("claim_category") or item["claim_type"].replace("_", " ").title(),
+                    analysis_version=ver_num,
                     verification_status=item["verification_status"],
                     severity=item["severity"],
                     confidence=item["confidence"],
@@ -187,7 +202,10 @@ def get_submission_claims(
         {
             "id": c.id,
             "claim_text": c.claim_text,
+            "sentence": c.sentence,
             "claim_type": c.claim_type,
+            "claim_category": c.claim_category or c.claim_type.replace("_", " ").title(),
+            "analysis_version": c.analysis_version or 1,
             "verification_status": c.verification_status,
             "severity": c.severity,
             "confidence": c.confidence,
@@ -197,6 +215,7 @@ def get_submission_claims(
             "source_validity_date": c.source_validity_date.isoformat() if c.source_validity_date else None,
             "suggested_correction": c.suggested_correction,
             "recommended_action": c.recommended_action,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in claims
     ]
@@ -234,13 +253,17 @@ def get_evidence_graph(
         if content_body:
             raw_claims = extract_factual_claims(content_body)
             verified = verify_claims_against_evidence(raw_claims, current_user.organization_id, db)
+            ver_num = submission.versions[-1].version_number if submission.versions else 1
             for item in verified:
                 c = ExtractedClaim(
                     id=str(uuid.uuid4()),
                     submission_id=submission_id,
                     organization_id=current_user.organization_id,
                     claim_text=item["claim_text"],
+                    sentence=item.get("sentence"),
                     claim_type=item["claim_type"],
+                    claim_category=item.get("claim_category") or item["claim_type"].replace("_", " ").title(),
+                    analysis_version=ver_num,
                     verification_status=item["verification_status"],
                     severity=item["severity"],
                     confidence=item["confidence"],

@@ -60,11 +60,14 @@ export function EvidenceGraph({ submissionId, submissionTitle }: EvidenceGraphPr
     setVerifying(true);
     setError(null);
     try {
-      const res = await api.post(`/evidence/verify/${submissionId}`);
+      const res = await api.post(`/evidence/reverify/${submissionId}`);
       const newClaims = res.data.claims || [];
       setClaims(newClaims);
       if (newClaims.length > 0) {
         setSelectedClaimId(newClaims[0].id);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("claims-reverified", { detail: { submissionId } }));
       }
     } catch (err: any) {
       setError(err.response?.data?.detail || "Evidence verification failed.");
@@ -77,6 +80,14 @@ export function EvidenceGraph({ submissionId, submissionTitle }: EvidenceGraphPr
     if (submissionId) {
       fetchEvidence();
     }
+
+    const handleClaimsUpdated = (e: any) => {
+      if (!e.detail || e.detail.submissionId === submissionId) {
+        fetchEvidence();
+      }
+    };
+    window.addEventListener("claims-reverified", handleClaimsUpdated);
+    return () => window.removeEventListener("claims-reverified", handleClaimsUpdated);
   }, [submissionId]);
 
   const filteredClaims = useMemo(() => {
@@ -544,24 +555,36 @@ export function EvidenceGraph({ submissionId, submissionTitle }: EvidenceGraphPr
               {/* Claim Statement */}
               <div>
                 <span className="text-[11px] font-bold text-midnight-500 uppercase tracking-wider block mb-1">
-                  Claim Under Audit:
+                  Extracted Factual Assertion:
                 </span>
                 <div className="p-3 bg-lavender-50 rounded-xl border border-midnight-100 font-semibold text-midnight-950">
-                  "{selectedClaim.claim_text}"
+                  &ldquo;{selectedClaim.claim_text}&rdquo;
                 </div>
               </div>
 
-              {/* Classification & Confidence */}
+              {/* Original Draft Sentence */}
+              {selectedClaim.sentence && (
+                <div>
+                  <span className="text-[10px] font-bold text-midnight-400 uppercase tracking-wider block mb-1">
+                    Source Sentence in Draft:
+                  </span>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-midnight-100 text-[11px] text-midnight-700 italic leading-relaxed">
+                    &ldquo;{selectedClaim.sentence}&rdquo;
+                  </div>
+                </div>
+              )}
+
+              {/* Classification, Action & Confidence */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-white border border-midnight-100">
-                  <span className="text-[10px] text-midnight-400 block font-semibold">Claim Type</span>
+                  <span className="text-[10px] text-midnight-400 block font-semibold">Assertion Category</span>
                   <span className="font-bold text-midnight-800 capitalize text-xs">
-                    {selectedClaim.claim_type.replace("_", " ")}
+                    {selectedClaim.claim_category || selectedClaim.claim_type.replace("_", " ")}
                   </span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-white border border-midnight-100">
-                  <span className="text-[10px] text-midnight-400 block font-semibold">Confidence Score</span>
+                  <span className="text-[10px] text-midnight-400 block font-semibold">Verification Confidence</span>
                   <span className="font-bold text-midnight-800 text-xs font-mono">
                     {Math.round(selectedClaim.confidence * 100)}% Match
                   </span>
@@ -594,19 +617,35 @@ export function EvidenceGraph({ submissionId, submissionTitle }: EvidenceGraphPr
                   <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-100 font-mono text-[11px] text-emerald-950 leading-relaxed whitespace-pre-wrap">
                     {selectedClaim.source_passage}
                   </div>
+                  {selectedClaim.source_validity_date && (
+                    <div className="mt-1 text-[10px] text-purple-700 font-mono">
+                      Validity Date: {selectedClaim.source_validity_date}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Suggested Remediation */}
-              {selectedClaim.suggested_correction && (
-                <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 space-y-1">
+              {/* Recommended Action & Suggested Remediation */}
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 space-y-1.5">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-xs">
                     <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>Recommended Remediation</span>
+                    <span>Recommended Action</span>
                   </div>
-                  <p className="text-xs leading-relaxed">{selectedClaim.suggested_correction}</p>
+                  {selectedClaim.recommended_action && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider border border-amber-300">
+                      {selectedClaim.recommended_action}
+                    </span>
+                  )}
                 </div>
-              )}
+                {selectedClaim.suggested_correction ? (
+                  <p className="text-xs leading-relaxed">{selectedClaim.suggested_correction}</p>
+                ) : (
+                  <p className="text-[11px] text-amber-800">
+                    Verify this factual statement against official brand guidelines before public release.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

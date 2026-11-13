@@ -229,4 +229,30 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Full Pytest Suite: **60 / 60 tests passing in 17.89s (100% success)**.
     - Next.js Production Build: **100% clean compilation** across all 12 routes with zero errors.
 
+- [x] **Milestone 13: Critical Round 3 Fix — Factual Claim Extraction, Unified Evidence Engine, Dual-DB Sync & Parity**
+  - [x] **Root Cause Diagnosis & Database Architecture Unification**:
+    - Diagnosed dual-database issue: uvicorn/CLI invocations from repository root vs `backend/` resolved to two separate SQLite files (`contentguard.db` with 0 records vs `backend/contentguard.db` with 23 submissions, 88 reports, 77 versions).
+    - Updated `backend/app/core/database.py` to resolve SQLite URLs to the canonical absolute path of `contentguard.db`.
+    - Created `backend/scripts/sync_databases.py` and merged all approved facts, submissions, versions, reports, and knowledge base documents across both databases.
+  - [x] **ExtractedClaim Database Schema & Migrations**:
+    - Added columns `sentence` (VARCHAR), `claim_category` (VARCHAR), `analysis_version` (INTEGER), and `analyzed_at` (DATETIME) to `ExtractedClaim` in `backend/app/models/knowledge_base.py`.
+    - Added safe, idempotent startup migration in `init_db()` in `backend/app/core/database.py` and created standalone migration script `backend/scripts/migrate_extracted_claims.py`.
+    - Updated TypeScript definitions in `frontend/src/types/index.ts` to mirror backend schema.
+  - [x] **Comprehensive Factual Claim Extraction Engine**:
+    - Expanded `CLAIM_PATTERNS` in `backend/app/engine/evidence_engine.py` across 12 distinct factual assertion categories: Product Capabilities, Absolute Guarantees, SLA & Availability, Certifications (SOC-2, ISO, HIPAA, PCI-DSS), Performance Multipliers, Scale Metrics, Company History, Specifications & Architecture, Financial Metrics, Turnaround Deadlines, and Research Findings.
+    - Added filters for email headers, greetings, inquiry questions, and pure marketing puffery to avoid false positives.
+  - [x] **Robust Evidence Verification & Corroboration Engine**:
+    - Implemented `_normalize_text()` and `_extract_numbers()` handling digit boundaries and comma separators (e.g. `12,000` vs `12000`).
+    - Fixed multi-claim sentence verification: claims within the same sentence are scored and ranked against facts individually, preventing cross-claim metric collisions and false "conflicting" verdicts.
+    - Supported 5 distinct verification statuses (`SUPPORTED`, `UNSUPPORTED`, `CONFLICTING`, `OUTDATED`, `UNVERIFIED`) with detailed explainable verdicts and suggested remediations.
+  - [x] **Creator & Reviewer Real-Time Synchronization & UX**:
+    - Both Creator Studio and Reviewer Station consume the identical persisted claim dataset from `/api/v1/evidence/submissions/{id}/claims`.
+    - Added `"claims-reverified"` custom event dispatch and listener in `EvidenceGraph.tsx` and `ClaimProvenanceExplorer.tsx` for instant cross-component updates.
+    - Upgraded Evidence Graph detail drawer with source draft sentence, category badge, validity date, recommended action, and remediation advice.
+    - Replaced false empty states with distinct loading, error (with 1-click retry), genuine zero claims, and verified claims topology views.
+  - [x] **100% Automated Testing & Production Verification**:
+    - Pytest Suite: **66 / 66 tests passing in 19.68s (100% success)** including all 5 scenario tests (`test_scenario_a_all_claims_supported`, `test_scenario_b_all_claims_unsupported`, `test_scenario_c_mixed_claims`, `test_scenario_d_ordinary_factual_sentences_without_numbers`, `test_scenario_e_zero_claims_promotional_copy`).
+    - Next.js Production Build: **100% clean compilation across all 12 routes** (`/`, `/admin`, `/compliance`, `/creator`, `/creator/[id]`, `/creator/new`, `/knowledge-base`, `/login`, `/preview/[token]`, `/register`, `/reviewer`, `/reviewer/[id]`).
+
+
 

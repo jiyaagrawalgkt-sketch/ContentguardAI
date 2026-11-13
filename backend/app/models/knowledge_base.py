@@ -82,7 +82,10 @@ class ExtractedClaim(Base):
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     
     claim_text = Column(Text, nullable=False)
+    sentence = Column(Text, nullable=True)  # Original sentence context
     claim_type = Column(String(50), nullable=False)  # numerical_metric, performance_multiplier, supremacy_claim, certification, absolute_statement
+    claim_category = Column(String(50), nullable=True)  # Mapped assertion category
+    analysis_version = Column(Integer, default=1, nullable=True)
     verification_status = Column(String(30), default=ClaimVerificationStatus.UNVERIFIED.value, nullable=False, index=True)
     severity = Column(String(20), default="high", nullable=False)
     confidence = Column(Float, default=1.0, nullable=False)
@@ -98,6 +101,7 @@ class ExtractedClaim(Base):
     recommended_action = Column(String(30), default="Verify", nullable=True)  # Verify, Replace, Remove, Update_Source
     suggested_correction = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    analyzed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=True)
 
     submission = relationship("ContentSubmission", back_populates="extracted_claims")
     source_document = relationship("KnowledgeDocument")
