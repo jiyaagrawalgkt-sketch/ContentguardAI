@@ -35,13 +35,14 @@ def get_pre_publication_gate_status(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
     report = submission.analysis_reports[-1] if submission.analysis_reports else None
+    visual_report = submission.visual_reports[-1] if submission.visual_reports else None
     claims = db.query(ExtractedClaim).filter(
         ExtractedClaim.submission_id == submission_id
     ).all()
 
     # Evaluation of gates
     blockers = []
-    if not report:
+    if not report and not visual_report:
         gate_status = "not_analyzed"
         blockers.append("Content has not been analyzed yet.")
         can_publish = False
@@ -49,7 +50,7 @@ def get_pre_publication_gate_status(
         gate_status = "changes_requested"
         blockers.append(f"Reviewer requested revisions: {submission.latest_review_feedback or 'Pending edits'}")
         can_publish = False
-    elif report.critical_count > 0:
+    elif report and report.critical_count > 0:
         gate_status = "needs_attention"
         blockers.append(f"{report.critical_count} critical policy violation(s) must be resolved.")
         can_publish = False
@@ -66,10 +67,13 @@ def get_pre_publication_gate_status(
         gate_status = "approved_for_publication"
         can_publish = True
 
+    crit_count = report.critical_count if report else 0
+    high_count = report.high_count if report else 0
+
     checks = {
-        "analysis_completed": report is not None,
-        "zero_critical_violations": (report.critical_count == 0) if report else False,
-        "zero_high_risk_violations": (report.high_count == 0) if report else False,
+        "analysis_completed": (report is not None) or (visual_report is not None),
+        "zero_critical_violations": crit_count == 0,
+        "zero_high_risk_violations": high_count == 0,
         "evidence_verified": not any(c.verification_status in ["conflicting", "unsupported"] for c in claims),
         "reviewer_approved": submission.status in [SubmissionStatus.APPROVED.value, SubmissionStatus.PUBLISHED.value]
     }
@@ -120,7 +124,8 @@ def publish_submission(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No content version available to publish")
 
     latest_report = submission.analysis_reports[-1] if submission.analysis_reports else None
-    actual_score = latest_report.compliance_score if latest_report else 100.0
+    latest_visual = submission.visual_reports[-1] if submission.visual_reports else None
+    actual_score = latest_report.compliance_score if latest_report else (latest_visual.visual_score if latest_visual else 100.0)
 
     # Create or update published content record
     published = db.query(PublishedContent).filter_by(submission_id=submission.id).first()
@@ -144,6 +149,11 @@ def publish_submission(
         published.public_access_enabled = True
 
     submission.status = SubmissionStatus.PUBLISHED.value
+    # Synchronize attached visual reports to published
+    for vr in submission.visual_reports:
+        vr.is_published = True
+        vr.published_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(published)
 
@@ -163,6 +173,42 @@ def publish_submission(
         id=published.id,
         public_preview_token=published.public_preview_token,
         published_by_name=current_user.full_name,
+        published_at=published.published_at,
+        final_content_snapshot=published.final_content_snapshot,
+        compliance_score=actual_score,
+        title=submission.title,
+        category=submission.category
+    )
+
+
+@router.get("/preview/by-sub/{submission_id}", response_model=PublishedContentOut, summary="Get Public Preview by Submission ID")
+def get_preview_by_submission(
+    submission_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db),
+):
+    """Retrieve published record for a submission."""
+    submission = db.query(ContentSubmission).filter(
+        ContentSubmission.id == submission_id,
+        ContentSubmission.organization_id == current_user.organization_id
+    ).first()
+
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    published = db.query(PublishedContent).filter_by(submission_id=submission_id).first()
+    if not published:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No publication record found for this submission")
+
+    publisher_name = published.publisher.full_name if published.publisher else "Authorized Brand Reviewer"
+    latest_report = submission.analysis_reports[-1] if submission.analysis_reports else None
+    latest_visual = submission.visual_reports[-1] if submission.visual_reports else None
+    actual_score = latest_report.compliance_score if latest_report else (latest_visual.visual_score if latest_visual else 100.0)
+
+    return PublishedContentOut(
+        id=published.id,
+        public_preview_token=published.public_preview_token,
+        published_by_name=publisher_name,
         published_at=published.published_at,
         final_content_snapshot=published.final_content_snapshot,
         compliance_score=actual_score,
@@ -198,7 +244,8 @@ def get_public_preview(token: str, db: Session = Depends(get_db)):
     # Fetch actual reviewer name from publisher or approval records
     publisher_name = published.publisher.full_name if published.publisher else "Authorized Brand Reviewer"
     latest_report = published.submission.analysis_reports[-1] if published.submission.analysis_reports else None
-    actual_score = latest_report.compliance_score if latest_report else 100.0
+    latest_visual = published.submission.visual_reports[-1] if published.submission.visual_reports else None
+    actual_score = latest_report.compliance_score if latest_report else (latest_visual.visual_score if latest_visual else 100.0)
 
     return PublishedContentOut(
         id=published.id,

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -47,6 +48,13 @@ def get_review_queue(
     items = []
     for s in submissions:
         latest_report = s.analysis_reports[-1] if s.analysis_reports else None
+        latest_visual = s.visual_reports[-1] if s.visual_reports else None
+
+        comp_score = latest_report.compliance_score if latest_report else (latest_visual.visual_score if latest_visual else None)
+        comp_rating = latest_report.compliance_rating if latest_report else (
+            ("A" if latest_visual.visual_score >= 80 else ("B" if latest_visual.visual_score >= 60 else "C")) if latest_visual else None
+        )
+
         items.append(
             SubmissionListItem(
                 id=s.id,
@@ -55,8 +63,8 @@ def get_review_queue(
                 target_platform=s.target_platform,
                 campaign_name=s.campaign_name,
                 status=s.status,
-                compliance_score=latest_report.compliance_score if latest_report else None,
-                compliance_rating=latest_report.compliance_rating if latest_report else None,
+                compliance_score=comp_score,
+                compliance_rating=comp_rating,
                 creator_name=s.creator.full_name if s.creator else "Unknown",
                 version_count=len(s.versions),
                 created_at=s.created_at,
@@ -108,7 +116,8 @@ def decide_submission(
 
     # Get actual compliance score at approval
     latest_report = submission.analysis_reports[-1] if submission.analysis_reports else None
-    score_at_decision = latest_report.compliance_score if latest_report else 0.0
+    latest_visual = submission.visual_reports[-1] if submission.visual_reports else None
+    score_at_decision = latest_report.compliance_score if latest_report else (latest_visual.visual_score if latest_visual else 0.0)
 
     # Record ReviewComment
     comment = ReviewComment(
@@ -133,6 +142,16 @@ def decide_submission(
 
     # Update Submission status
     submission.status = valid_decisions[decision_normalized]
+
+    # Synchronize attached visual reports with reviewer decision
+    for vr in submission.visual_reports:
+        vr.review_status = decision_normalized
+        vr.reviewer_comments = payload.comment
+        vr.reviewed_at = datetime.now(timezone.utc)
+        vr.reviewed_by_user_id = current_user.id
+        if decision_normalized != "approved":
+            vr.is_published = False
+
     db.commit()
     db.refresh(submission)
 

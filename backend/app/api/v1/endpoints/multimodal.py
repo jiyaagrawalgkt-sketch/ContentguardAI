@@ -12,6 +12,8 @@ from app.models.user import User
 from app.models.submission import ContentSubmission, UploadedFile, ContentVersion, SubmissionStatus
 from app.models.multimodal import VisualAnalysisReport
 from app.models.brand_knowledge import BrandAsset, RestrictedTerm
+from app.models.review import ReviewComment, ApprovalRecord
+from app.models.publication import PublishedContent
 from app.models.audit import AuditLog
 from app.engine.multimodal_engine import analyze_visual_asset, generate_corrected_visual_asset
 
@@ -22,7 +24,7 @@ os.makedirs(IMAGE_UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/analyze", status_code=status.HTTP_201_CREATED, summary="Upload and Analyze Visual Brand Asset")
-async def analyze_visual_endpoint(
+def analyze_visual_endpoint(
     file: UploadFile = File(...),
     submission_id: Optional[str] = Form(None),
     alt_text: Optional[str] = Form(None),
@@ -46,7 +48,7 @@ async def analyze_visual_endpoint(
             detail="Unsupported image format. Allowed formats: PNG, JPG, JPEG, WEBP, SVG"
         )
 
-    file_bytes = await file.read()
+    file_bytes = file.file.read() if hasattr(file, "file") else file.read()
     if len(file_bytes) > 15 * 1024 * 1024:  # 15MB limit
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,6 +130,29 @@ async def analyze_visual_endpoint(
     )
     db.add(uploaded_file)
     db.flush()
+
+    # Ensure submission has an active ContentVersion containing OCR text and asset metadata
+    if not sub.versions:
+        body_parts = [f"[Visual Brand Asset: {filename}]"]
+        if ocr_text:
+            body_parts.append(f"OCR Extracted Copy:\n{ocr_text}")
+        if alt_text:
+            body_parts.append(f"Accessibility Alt Text:\n{alt_text}")
+        content_body = "\n\n".join(body_parts)
+
+        initial_ver = ContentVersion(
+            id=str(uuid.uuid4()),
+            submission_id=sub.id,
+            version_number=1,
+            content_body=content_body,
+            change_summary="Initial visual asset upload & optical analysis"
+        )
+        db.add(initial_ver)
+        db.flush()
+        sub.current_version_id = initial_ver.id
+
+    if sub.status == SubmissionStatus.DRAFT.value:
+        sub.status = SubmissionStatus.ANALYSIS_COMPLETE.value
 
     # Save VisualAnalysisReport
     report = VisualAnalysisReport(
@@ -370,7 +395,7 @@ def generate_corrected_visual_endpoint(
 
 
 @router.post("/reports/{report_id}/upload-corrected", summary="Upload Artist-Corrected Visual Asset")
-async def upload_corrected_visual_endpoint(
+def upload_corrected_visual_endpoint(
     report_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(require_any_authenticated),
@@ -383,7 +408,7 @@ async def upload_corrected_visual_endpoint(
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
-    file_bytes = await file.read()
+    file_bytes = file.file.read() if hasattr(file, "file") else file.read()
     filename = file.filename or "corrected.png"
     safe_name = f"{uuid.uuid4().hex[:12]}_user_corrected_{filename}"
     file_path = os.path.join(IMAGE_UPLOAD_DIR, safe_name)
@@ -468,7 +493,7 @@ def decide_visual_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
     decision = payload.get("decision", "").lower().strip()
-    comment = payload.get("comment", "").strip()
+    comment = (payload.get("comment") or payload.get("comments") or "").strip()
 
     valid = {"approved": "approved", "rejected": "rejected", "changes_requested": "changes_requested"}
     if decision not in valid:
@@ -479,15 +504,35 @@ def decide_visual_review(
     report.reviewed_at = datetime.now(timezone.utc)
     report.reviewed_by_user_id = current_user.id
 
+    # Strictly separate approval from publishing:
     if decision == "approved":
-        report.is_published = True
-        report.published_at = datetime.now(timezone.utc)
+        report.is_published = False  # Not published until explicit publishing action
         if report.submission:
             report.submission.status = SubmissionStatus.APPROVED.value
     elif decision == "changes_requested" and report.submission:
         report.submission.status = SubmissionStatus.CHANGES_REQUESTED.value
     elif decision == "rejected" and report.submission:
         report.submission.status = SubmissionStatus.REJECTED.value
+
+    # Synchronize submission ReviewComment and ApprovalRecord
+    if report.submission:
+        comm_rec = ReviewComment(
+            id=str(uuid.uuid4()),
+            submission_id=report.submission.id,
+            reviewer_id=current_user.id,
+            comment_text=f"[Visual Asset Review] {comment}" if comment else f"[Visual Asset Review] Status updated to {decision}",
+            is_internal_only=False
+        )
+        db.add(comm_rec)
+        appr_rec = ApprovalRecord(
+            id=str(uuid.uuid4()),
+            submission_id=report.submission.id,
+            reviewer_id=current_user.id,
+            decision=decision,
+            feedback_reason=comment,
+            compliance_score_at_approval=report.visual_score
+        )
+        db.add(appr_rec)
 
     audit = AuditLog(
         organization_id=current_user.organization_id,
@@ -499,13 +544,99 @@ def decide_visual_review(
     )
     db.add(audit)
     db.commit()
+    db.refresh(report)
 
     return {
-        "message": f"Visual asset review recorded: {decision}",
         "report_id": report.id,
+        "submission_id": report.submission_id,
+        "dimensions": f"{report.image_width}x{report.image_height}",
+        "aspect_ratio": report.aspect_ratio,
+        "visual_score": report.visual_score,
+        "wcag_compliance": report.wcag_compliance,
+        "contrast_ratio": report.contrast_ratio,
+        "contrast_details": report.contrast_details,
+        "palette_match_score": report.palette_match_score,
+        "dominant_colors": report.dominant_colors,
+        "palette_deviations": report.palette_deviations,
+        "alt_text_evaluation": report.alt_text_evaluation,
+        "logo_status": report.logo_status,
+        "ocr_extracted_text": report.ocr_extracted_text,
+        "visual_issues": report.visual_issues,
         "review_status": report.review_status,
+        "has_corrected_image": bool(report.corrected_image_path and os.path.exists(report.corrected_image_path)),
+        "accepted_corrections": report.accepted_corrections or [],
+        "rejected_corrections": report.rejected_corrections or [],
+        "creator_notes": report.creator_notes,
+        "reviewer_comments": report.reviewer_comments,
+        "reviewed_at": report.reviewed_at.isoformat() if report.reviewed_at else None,
         "is_published": report.is_published,
         "reviewer": current_user.full_name,
+        "message": f"Visual asset review recorded: {decision}",
+    }
+
+
+@router.post("/reports/{report_id}/publish", summary="Publish Approved Visual Brand Asset")
+def publish_visual_report(
+    report_id: str,
+    current_user: User = Depends(require_reviewer),
+    db: Session = Depends(get_db),
+):
+    """Publish an approved visual asset with live preview token generation."""
+    report = db.query(VisualAnalysisReport).filter(
+        VisualAnalysisReport.id == report_id,
+        VisualAnalysisReport.organization_id == current_user.organization_id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Visual report not found")
+
+    if report.review_status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot publish: visual asset review status is '{report.review_status}'. Asset must be approved before publishing."
+        )
+
+    sub = report.submission
+    if sub and sub.status not in [SubmissionStatus.APPROVED.value, SubmissionStatus.PUBLISHED.value]:
+        sub.status = SubmissionStatus.APPROVED.value
+
+    report.is_published = True
+    report.published_at = datetime.now(timezone.utc)
+
+    token = None
+    if sub:
+        pub = db.query(PublishedContent).filter_by(submission_id=sub.id).first()
+        token = pub.public_preview_token if pub else "pub_" + uuid.uuid4().hex
+        ver = sub.versions[-1] if sub.versions else None
+        snapshot = ver.content_body if ver else f"[Visual Brand Asset: {report.uploaded_file.original_filename if report.uploaded_file else 'Asset'}]"
+
+        if not pub:
+            pub = PublishedContent(
+                id=str(uuid.uuid4()),
+                submission_id=sub.id,
+                public_preview_token=token,
+                published_by=current_user.id,
+                published_at=datetime.now(timezone.utc),
+                final_content_snapshot=snapshot,
+                public_access_enabled=True,
+            )
+            db.add(pub)
+        else:
+            pub.published_at = datetime.now(timezone.utc)
+            pub.final_content_snapshot = snapshot
+            pub.published_by = current_user.id
+            pub.public_access_enabled = True
+
+        sub.status = SubmissionStatus.PUBLISHED.value
+
+    db.commit()
+
+    return {
+        "message": "Visual brand asset certified and published successfully",
+        "report_id": report.id,
+        "submission_id": sub.id if sub else None,
+        "is_published": True,
+        "published_at": report.published_at.isoformat(),
+        "public_preview_token": token,
     }
 
 

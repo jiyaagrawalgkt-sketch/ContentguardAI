@@ -570,7 +570,7 @@ export default function CorrectionWorkspacePage() {
 
         {workspaceTab === "multimodal" && (
           <div className="mb-8">
-            <VisualAuditPanel submissionId={id} />
+            <VisualAuditPanel submissionId={id} onReviewSubmitted={loadSubmission} />
           </div>
         )}
 

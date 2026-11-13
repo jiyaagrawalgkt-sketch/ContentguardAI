@@ -189,16 +189,16 @@ def search_knowledge_chunks(
 # --- 5. Claim Extraction ---
 
 CLAIM_PATTERNS = [
-    # 1. Supremacy & Comparative Claims (evaluate before guarantees to classify exclusive platform supremacy)
+    # 1. Comparative & Supremacy Claims
     (
-        r"\b(?:the\s+)?(?:fastest|most\s+secure|industry-leading|number\s+one|#1|best-in-class|unrivaled|unmatched|first-ever|only\s+platform)\b(?:\s+[\w-]+){0,4}|\b(?:outperforms?|outperformed|surpasses?)\s+legacy\s+[\w\s]{1,30}\b|\b(?:traditional\s+[\w\s]{1,20}\s+completely\s+unnecessary|nobody\s+else\s+can\s+compete|best\s+solution\s+in\s+the\s+(?:entire\s+)?world)\b",
+        r"(?:#\s*1|\bno\.\s*1)\b(?:\s+in\s+the\s+[\w\s-]+|\s+[\w-]+){0,4}|\b(?:the\s+)?(?:fastest|most\s+secure|industry-leading|number\s+one|best-in-class|unrivaled|unmatched|first-ever|only\s+platform|superior)\b(?:\s+[\w-]+){0,4}|\b(?:outperforms?|outperformed|surpasses?)\s+legacy\s+[\w\s]{1,30}\b|\b(?:no\s+other\s+competitor\s+can\s+match|nobody\s+else\s+can\s+compete|best\s+solution\s+in\s+the\s+(?:entire\s+)?world|fastest\s+platform\s+in\s+the\s+industry)\b",
         "supremacy_claim",
         "Supremacy & Comparisons",
         "high"
     ),
-    # 2. Absolute Guarantees & Zero-Risk Claims
+    # 2. Absolute Guarantees & Return Policies
     (
-        r"\b(?:guarantees?|guaranteed|assures?|ensures?|promises?)\s+(?:complete|total|100%|zero|unconditional|full|absolute)\s+[\w\s-]{1,40}\b|\b(?:100%\s+(?:bug-free|guaranteed|safe|secure)|zero\s+(?:vulnerabilities|risk|incidents|downtime)|never\s+(?:fails|crashes|downtime|breached)|completely\s+(?:unhackable|secure|immune)|no\s+hacker\s+in\s+the\s+world)\b",
+        r"\b(?:100%\s+risk-free\s+guarantee|100%\s+(?:bug-free|guaranteed|safe|secure)|zero\s+(?:vulnerabilities|risk|incidents|downtime)|never\s+(?:fails|crashes|downtime|breached)|completely\s+(?:unhackable|secure|immune)|no\s+hacker\s+in\s+the\s+world)\b|\b(?:unconditional|full|100%|money-back)\s+refunds?\b|\b(?:guarantees?|guaranteed|assures?|ensures?|promises?)\s+(?:complete|total|100%|zero|unconditional|full|absolute)\s+[\w\s-]{1,40}\b|\b(?:risk-free|money-back)\s+guarantee\b",
         "guarantee_absolute",
         "Guarantees & Absolutes",
         "critical"
@@ -217,9 +217,9 @@ CLAIM_PATTERNS = [
         "Security & Compliance",
         "critical"
     ),
-    # 5. Numerical & Percentage Multipliers (past, present, future tenses: improved by 500%, reduced to zero, etc.)
+    # 5. Numerical & Percentage Multipliers
     (
-        r"\b(?:increases?|increased|increasing|improves?|improved|improving|reduces?|reduced|reducing|boosts?|boosted|boosting|accelerates?|accelerated|accelerating|grows?|grew|grown|growing|saves?|saved|saving|cuts?|cutting)\b[\w\s]{0,40}?\b(?:by\s+|up\s+to\s+|to\s+)?(\d+(?:\.\d+)?%|\d+(?:\.\d+)?x|zero|half|\d+\s*(?:times|fold))(?!\w)",
+        r"\b(?:increases?|increased|increasing|improves?|improved|improving|reduces?|reduced|reducing|boosts?|boosted|boosting|accelerates?|accelerated|accelerating|grows?|grew|grown|growing|saves?|saved|saving|cuts?|cutting)\b[\w\s]{0,40}?\b(?:by\s+|up\s+to\s+|to\s+)?(\d+(?:\.\d+)?%|\d+(?:\.\d+)?x|zero|half|\d+\s*(?:times|fold))(?!\w)|\b(?:reduces?|lowered|cuts?|saves?)\s+(?:operational\s+costs?|overhead|expenses?)\b",
         "performance_multiplier",
         "Performance & Metrics",
         "high"
@@ -238,9 +238,9 @@ CLAIM_PATTERNS = [
         "Company Information",
         "medium"
     ),
-    # 8. Processing Capacity & Product Capabilities
+    # 8. Product Features, Specs & Capabilities
     (
-        r"\bprocesses?\s+(?:\d{1,3}(?:,\d{3})+|\d+)\s+[\w\s]{1,30}\s+per\s+(?:minute|second|hour|day)\b|\b(?:supports?|provides?|delivers?|features?|enables?|includes?|offers?)\s+(?:real-time|automated|continuous|sub-second|multi-modal|autonomous|zero-trust)\s+[\w\s-]{3,40}\b|\b(?:automates?|orchestrates?)\s+[\w\s]{1,30}\s+(?:audits?|compliance|governance|verification|workflows?)\b",
+        r"\b(?:custom|proprietary|patented|next-gen|active)\s+(?:acoustic\s+architecture|audio\s+architecture|noise\s+cancellation|threat\s+detection)\b|\b(?:engineered|equipped|built)\s+with\s+(?:active\s+noise\s+cancellation|[\w\s-]{3,30})\b|\b(?:supports?|provides?|delivers?|features?|enables?|includes?|offers?)\s+(?:real-time|automated|continuous|sub-second|multi-modal|autonomous|zero-trust|sound\s+fidelity|threat\s+detection)\s*[\w\s-]{0,30}\b|\bprocesses?\s+(?:\d{1,3}(?:,\d{3})+|\d+)\s+[\w\s]{1,30}\s+per\s+(?:minute|second|hour|day)\b",
         "product_capability",
         "Product Capabilities",
         "high"
@@ -254,15 +254,15 @@ CLAIM_PATTERNS = [
     ),
     # 10. Financial & Commercial Metrics
     (
-        r"(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:[KMBkmb]|million|billion|ARR|MRR)?\b|\b(?:generated|produced|earned|closed)\s+[\w\s]{0,20}?(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:million|billion|k)?\b|\b(?:profit\s+margin|margin|revenue\s+growth|roi)\s+(?:of\s+)?\d+(?:\.\d+)?%\b|\b(?:reduces?|lowered|cuts?|saves?)\s+(?:operational\s+costs?|overhead|expenses?)\s*(?:by\s+\d+(?:\.\d+)?%)?\b",
+        r"(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:[KMBkmb]|million|billion|ARR|MRR)?\b|\b(?:generated|produced|earned|closed)\s+[\w\s]{0,20}?(?:\$|€|£)\s*\d+(?:\.\d+)?\s*(?:million|billion|k)?\b|\b(?:profit\s+margin|margin|revenue\s+growth|roi)\s+(?:of\s+)?\d+(?:\.\d+)?%\b",
         "financial_metric",
         "Financial & Commercial",
         "medium"
     ),
-    # 11. Turnaround, Deadlines & Customer Support
+    # 11. Turnaround, Deadlines, Return Windows & Customer Support
     (
-        r"\b(?:resolved|delivered|completed|turned\s+around)\b[\w\s]{0,25}?\b(?:within|in)\s+(?:\d+|two|three|twenty-four|24)\s*(?:hours?|minutes?|days?)\b|\b(?:24\s*/\s*7|24x7|round-the-clock)\s*(?:customer\s+support|support|monitoring|assistance|availability)?\b|\b(?:within\s+\d+\s*(?:hours?|days?|business\s+days?)|scheduled\s+for\s+Q[1-4]\s*\d{4})\b",
-        "customer_support",
+        r"\b(?:for\s+)?(?:\d+|sixty|thirty|ninety|twenty-four|24|30|60|90)\s+(?:full\s+)?(?:days?|hours?|business\s+days?)(?:\s+(?:trial|return\s+policy|guarantee|warranty|period))?\b|\b(?:introductory\s+pricing\s+expires|pricing\s+expires|expires?|deal\s+expires?)\s+at\s+[\w\s:]+\b|\b(?:resolved|delivered|completed|turned\s+around)\b[\w\s]{0,25}?\b(?:within|in)\s+(?:\d+|two|three|twenty-four|24)\s*(?:hours?|minutes?|days?)\b|\b(?:24\s*/\s*7|24x7|round-the-clock)\s*(?:customer\s+support|support|monitoring|assistance|availability)?\b|\b(?:within\s+\d+\s*(?:hours?|days?|business\s+days?)|scheduled\s+for\s+Q[1-4]\s*\d{4})\b",
+        "time_deadline",
         "Deadlines & Support",
         "medium"
     ),
@@ -307,24 +307,23 @@ def extract_factual_claims(content: str) -> List[Dict[str, Any]]:
             continue
 
         for pattern, claim_type, category_name, default_severity in CLAIM_PATTERNS:
-            match = re.search(pattern, s_clean, re.IGNORECASE)
-            if match:
+            for match in re.finditer(pattern, s_clean, re.IGNORECASE):
                 matched_str = match.group(0).strip()
+                # Clean trailing punctuation and trailing conjunctions
                 matched_str = re.sub(r"[.,;!?:]+$", "", matched_str).strip()
+                matched_str = re.sub(r"\s+(?:and|or|with|to|for|in|on|at|by)$", "", matched_str, flags=re.IGNORECASE).strip()
 
                 if matched_str and matched_str.lower() not in seen_claim_texts:
-                    seen_claim_texts.add(matched_str.lower())
-                    claims.append({
-                        "claim_text": matched_str,
-                        "sentence": s_clean,
-                        "claim_type": claim_type,
-                        "claim_category": category_name,
-                        "severity": default_severity,
-                    })
-
-                    # If sentence matches a full superlative or guarantee assertion, prioritize it
-                    if claim_type in ["supremacy_claim", "guarantee_absolute"]:
-                        break
+                    # Avoid adding smaller substrings of already captured claims
+                    if not any(matched_str.lower() in existing for existing in seen_claim_texts):
+                        seen_claim_texts.add(matched_str.lower())
+                        claims.append({
+                            "claim_text": matched_str,
+                            "sentence": s_clean,
+                            "claim_type": claim_type,
+                            "claim_category": category_name,
+                            "severity": default_severity,
+                        })
 
     return claims
 

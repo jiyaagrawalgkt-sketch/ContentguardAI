@@ -254,5 +254,36 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Pytest Suite: **66 / 66 tests passing in 19.68s (100% success)** including all 5 scenario tests (`test_scenario_a_all_claims_supported`, `test_scenario_b_all_claims_unsupported`, `test_scenario_c_mixed_claims`, `test_scenario_d_ordinary_factual_sentences_without_numbers`, `test_scenario_e_zero_claims_promotional_copy`).
     - Next.js Production Build: **100% clean compilation across all 12 routes** (`/`, `/admin`, `/compliance`, `/creator`, `/creator/[id]`, `/creator/new`, `/knowledge-base`, `/login`, `/preview/[token]`, `/register`, `/reviewer`, `/reviewer/[id]`).
 
+- [x] **Milestone 14: Dynamic Claim Extraction Polish & End-to-End Visual Governance Lifecycle**
+  - [x] **Dynamic Factual Claim Extraction & Evidence Graph Integration**:
+    - Fixed non-alphanumeric boundary for comparative `#1 in the world` and `no other competitor can match` using `(?:#\s*1|\bno\.\s*1)`.
+    - Added return policy and guarantee patterns (`100% risk-free guarantee`, `unconditional refund`, `money-back guarantee`).
+    - Added product capabilities and acoustic spec patterns (`custom acoustic architecture`, `active noise cancellation`, `sound fidelity`).
+    - Added deadline and trial window patterns (`for 60 full days`, `introductory pricing expires at midnight`).
+    - Removed early `break` in sentence regex scanning to capture multiple distinct assertions within compound sentences.
+    - Added automated stripping of trailing conjunctions/prepositions (`and`, `with`, `for`, `in`, `to`, `at`).
+    - PulseBuds Pro text now extracts **8 distinct factual claims**, builds **11 nodes / 10 links** in Evidence Graph, and eliminates false 100% confidence scores when claims are unsupported.
+  - [x] **Visual Submission Ingestion & Content Versioning Pipeline**:
+    - `POST /multimodal/analyze` automatically creates an initial `ContentVersion` containing OCR text and asset metadata when a standalone image is uploaded.
+    - Sets `current_version_id` and advances status from `DRAFT` to `ANALYSIS_COMPLETE`.
+    - Ensures visual submissions behave identically to written copy throughout versioning, diffing, reviewer workflows, and publication.
+  - [x] **Strict Separation of Reviewer Approval and Publication**:
+    - In `decide_visual_review` and `decide_submission`, approving content sets status to `APPROVED` while leaving `is_published = False`.
+    - Content is only published upon explicit reviewer action triggering `/publishing/{id}/publish` or `/multimodal/reports/{id}/publish`.
+    - Reviewer comments and feedback are preserved and synchronized across `ReviewComment`, `ApprovalRecord`, and `VisualAnalysisReport`.
+  - [x] **Unified Reviewer Station & Pre-Publication Gate**:
+    - Reviewer queue (`/reviews/queue`) falls back to `visual_score` when text reports are absent, preventing missing scores.
+    - Pre-Publication Gate (`/publishing/{id}/gate-status`) inspects both visual reports and text analysis, evaluating WCAG violations and critical findings.
+    - Added `GET /publishing/preview/by-sub/{submission_id}` allowing reviewers and creators to retrieve public preview tokens for published submissions.
+  - [x] **Creator Workspace Visual Enhancements**:
+    - Added submission format toggle in `/creator/new` ("Text Copy Draft" vs "Upload Visual Brand Asset") allowing direct image uploads from the creation screen.
+    - Added prominent Reviewer Feedback Banner in `VisualAuditPanel` when status is `changes_requested` or `rejected`.
+    - Dynamic "Resubmit Visual with Revisions" button and `onReviewSubmitted` callback refreshing creator page state on submission.
+  - [x] **Automated Testing & Production Verification**:
+    - Added comprehensive end-to-end lifecycle test `backend/tests/test_visual_review_lifecycle.py` verifying upload -> OCR -> submit -> queue -> changes requested -> resubmit -> approve -> publish -> preview.
+    - Pytest Suite: **67 / 67 tests passing in 22.27s (100% success)**.
+    - Next.js Production Build: **100% clean compilation across all 12 routes**.
+
+
 
 

@@ -19,14 +19,18 @@ import {
   Layers,
   ShieldAlert,
   Info,
-  X
+  X,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
+import { VisualAuditPanel } from "@/components/multimodal/VisualAuditPanel";
 
 function NewSubmissionForm() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [submissionType, setSubmissionType] = useState<"text" | "visual">("text");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("marketing_email");
   const [targetPlatform, setTargetPlatform] = useState("Email Newsletter");
@@ -191,6 +195,34 @@ function NewSubmissionForm() {
           </div>
         )}
 
+        {/* Submission Mode Selector */}
+        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white border border-midnight-200 shadow-xs mb-6 w-fit">
+          <button
+            type="button"
+            onClick={() => setSubmissionType("text")}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              submissionType === "text"
+                ? "bg-midnight-950 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Text Copy Draft</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubmissionType("visual")}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              submissionType === "visual"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>Upload Visual Brand Asset</span>
+          </button>
+        </div>
+
         {error && (
           <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center gap-3 text-xs text-rose-700">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -198,8 +230,27 @@ function NewSubmissionForm() {
           </div>
         )}
 
-        {/* Content Submission Form */}
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-3xl border border-midnight-100 shadow-card">
+        {submissionType === "visual" ? (
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-white border border-brand-200 text-xs text-midnight-700 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-brand-600" />
+                <span>
+                  Upload your branded graphic, flyer, banner, or poster to run color palette matching, WCAG 2.1 contrast checks, and optical OCR review.
+                </span>
+              </div>
+            </div>
+            <VisualAuditPanel
+              onAnalysisComplete={(rep: any) => {
+                if (rep?.submission_id) {
+                  router.push(`/creator/${rep.submission_id}`);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          /* Content Submission Form */
+          <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-3xl border border-midnight-100 shadow-card">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-midnight-800 mb-1">
@@ -314,6 +365,7 @@ function NewSubmissionForm() {
             </div>
           </div>
         </form>
+        )}
 
         {/* Sample Content Library Modal */}
         {showLibraryModal && (

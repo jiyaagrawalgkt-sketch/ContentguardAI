@@ -29,9 +29,10 @@ import { api, getApiBaseUrl } from "@/lib/api";
 interface VisualAuditPanelProps {
   submissionId?: string;
   onAnalysisComplete?: (report: VisualAnalysisReport) => void;
+  onReviewSubmitted?: () => void;
 }
 
-export function VisualAuditPanel({ submissionId, onAnalysisComplete }: VisualAuditPanelProps) {
+export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSubmitted }: VisualAuditPanelProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [altText, setAltText] = useState<string>("");
@@ -193,6 +194,9 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete }: VisualAud
         type: "success",
         text: "Visual asset and analysis submitted to the Reviewer Station!"
       });
+      if (onReviewSubmitted) {
+        onReviewSubmitted();
+      }
     } catch (e: any) {
       console.error(e);
       setStatusMessage({ type: "error", text: e.response?.data?.detail || "Failed to submit visual for review." });
@@ -280,6 +284,24 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete }: VisualAud
         }`}>
           {statusMessage.type === "success" ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <Info className="w-4 h-4 shrink-0" />}
           <span className="font-medium">{statusMessage.text}</span>
+        </div>
+      )}
+
+      {/* Reviewer Feedback Banner */}
+      {report?.reviewer_comments && (
+        <div className="mx-6 mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold">
+              Reviewer Governance Feedback ({report.review_status ? report.review_status.replace("_", " ").toUpperCase() : "NOTES"}):
+            </p>
+            <p className="text-amber-900 leading-relaxed font-sans">{report.reviewer_comments}</p>
+            {report.review_status === "changes_requested" && (
+              <p className="text-[11px] text-amber-700 font-medium">
+                Please review the optical findings, apply suggested fixes or upload a corrected graphic, then resubmit below.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -697,7 +719,13 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete }: VisualAud
                           ) : (
                             <>
                               <Send className="w-3.5 h-3.5" />
-                              <span>Submit Visual for Reviewer Approval</span>
+                              <span>
+                                {report.review_status === "changes_requested"
+                                  ? "Resubmit Visual with Revisions"
+                                  : report.review_status === "approved"
+                                  ? "Resubmit Visual for Re-Approval"
+                                  : "Submit Visual for Reviewer Approval"}
+                              </span>
                             </>
                           )}
                         </button>

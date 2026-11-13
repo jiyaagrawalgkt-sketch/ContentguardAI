@@ -66,6 +66,7 @@ export default function ReviewerStationPage() {
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [publishedToken, setPublishedToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -75,6 +76,7 @@ export default function ReviewerStationPage() {
   const [visualViewMode, setVisualViewMode] = useState<"side_by_side" | "original" | "corrected">("side_by_side");
   const [visualComment, setVisualComment] = useState("");
   const [visualSubmitting, setVisualSubmitting] = useState(false);
+  const [visualPublishing, setVisualPublishing] = useState(false);
 
   const apiBase = getApiBaseUrl();
 
@@ -137,12 +139,13 @@ export default function ReviewerStationPage() {
         comment,
       });
 
+      setSubmission(decideRes.data);
+      setComment("");
+
       if (decision === "approved") {
-        const pubRes = await api.post(`/publishing/${id}/publish`);
-        setPublishedToken(pubRes.data.public_preview_token);
         setNotification({
           type: "success",
-          message: `Submission approved and published! Public read-only preview is now live.`
+          message: `Submission approved by reviewer! It is now certified and ready for publication.`
         });
       } else {
         setNotification({
@@ -150,8 +153,7 @@ export default function ReviewerStationPage() {
           message: `Decision recorded: status updated to '${decision.replace("_", " ")}'.`
         });
       }
-
-      setSubmission(decideRes.data);
+      loadVisualReports();
     } catch (err: any) {
       setNotification({
         type: "error",
@@ -162,11 +164,34 @@ export default function ReviewerStationPage() {
     }
   };
 
+  const handlePublish = async () => {
+    try {
+      setPublishing(true);
+      setNotification(null);
+      const pubRes = await api.post(`/publishing/${id}/publish`);
+      setPublishedToken(pubRes.data.public_preview_token);
+      setNotification({
+        type: "success",
+        message: "Content officially published! Live public preview link is now generated."
+      });
+      loadSubmission();
+      loadVisualReports();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to publish content."
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const handleVisualDecision = async (reportId: string, decision: "approved" | "rejected" | "changes_requested") => {
     try {
       setVisualSubmitting(true);
       const res = await api.post(`/multimodal/reports/${reportId}/review-decision`, {
         decision,
+        comment: visualComment.trim() || undefined,
         comments: visualComment.trim() || undefined,
       });
 
@@ -180,6 +205,7 @@ export default function ReviewerStationPage() {
         message: `Visual asset review decision recorded: ${decision.replace("_", " ").toUpperCase()}`,
       });
       setVisualComment("");
+      loadSubmission();
     } catch (err: any) {
       setNotification({
         type: "error",
@@ -187,6 +213,30 @@ export default function ReviewerStationPage() {
       });
     } finally {
       setVisualSubmitting(false);
+    }
+  };
+
+  const handleVisualPublish = async (reportId: string) => {
+    try {
+      setVisualPublishing(true);
+      setNotification(null);
+      const res = await api.post(`/multimodal/reports/${reportId}/publish`);
+      if (res.data.public_preview_token) {
+        setPublishedToken(res.data.public_preview_token);
+      }
+      setNotification({
+        type: "success",
+        message: "Visual brand asset officially published and certified!",
+      });
+      loadVisualReports();
+      loadSubmission();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err.response?.data?.detail || "Failed to publish visual asset.",
+      });
+    } finally {
+      setVisualPublishing(false);
     }
   };
 
@@ -203,7 +253,8 @@ export default function ReviewerStationPage() {
 
   const v1 = submission?.versions[0];
   const currentV = submission?.versions[submission.versions.length - 1];
-  const score = submission?.latest_report?.compliance_score ?? 0;
+  const visualScore = visualReports[0]?.visual_score ?? 0;
+  const score = submission?.latest_report?.compliance_score ?? (visualReports.length > 0 ? visualScore : 0);
   const badge = getScoreBadge(score);
   const activeVisual = visualReports[activeVisualIndex];
   const activeVisualId = activeVisual ? (activeVisual.id || activeVisual.report_id) : "";
@@ -618,8 +669,24 @@ export default function ReviewerStationPage() {
                   ) : (
                     <CheckCircle2 className="w-3.5 h-3.5" />
                   )}
-                  <span>Approve Visual for Publication</span>
+                  <span>Approve Visual Draft</span>
                 </button>
+
+                {activeVisual.review_status === "approved" && !activeVisual.is_published && (
+                  <button
+                    type="button"
+                    onClick={() => handleVisualPublish(activeVisualId)}
+                    disabled={visualPublishing}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold text-white bg-midnight-950 hover:bg-midnight-900 shadow-md transition-all disabled:opacity-50"
+                  >
+                    {visualPublishing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5 text-brand-300" />
+                    )}
+                    <span>Publish Certified Asset</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -670,7 +737,7 @@ export default function ReviewerStationPage() {
                 <button
                   type="button"
                   onClick={() => handleDecision("changes_requested")}
-                  disabled={submitting}
+                  disabled={submitting || publishing}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors disabled:opacity-50"
                 >
                   Request Changes
@@ -679,7 +746,7 @@ export default function ReviewerStationPage() {
                 <button
                   type="button"
                   onClick={() => handleDecision("rejected")}
-                  disabled={submitting}
+                  disabled={submitting || publishing}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors disabled:opacity-50"
                 >
                   Reject Content
@@ -688,16 +755,32 @@ export default function ReviewerStationPage() {
                 <button
                   type="button"
                   onClick={() => handleDecision("approved")}
-                  disabled={submitting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-midnight-900 hover:bg-midnight-800 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                  disabled={submitting || publishing}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all disabled:opacity-50"
                 >
                   {submitting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                   )}
-                  <span>Approve & Publish Immediately</span>
+                  <span>Approve Draft</span>
                 </button>
+
+                {submission?.status === "approved" && (
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    disabled={publishing}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-midnight-900 hover:bg-midnight-800 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {publishing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5 text-brand-300" />
+                    )}
+                    <span>Publish Certified Content</span>
+                  </button>
+                )}
               </div>
             </>
           )}
