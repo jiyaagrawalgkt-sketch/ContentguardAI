@@ -42,6 +42,7 @@ class DetectedIssueOut(BaseModel):
     guideline_reference: str
     confidence: float
     recommended_action: Optional[str] = "Replace"
+    correction_type: Optional[str] = "REPLACE"
     detection_source: Optional[str] = "Rule Engine"
     suggested_replacement: Optional[str] = None
     rationale: Optional[str] = None

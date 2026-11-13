@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.models.brand_knowledge import BrandGuideline, ApprovedFact
 from app.engine.deterministic import run_deterministic_analysis
 from app.engine.scoring import calculate_compliance_score
+from app.engine.correction_engine import determine_correction_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,14 @@ If no additional issues are found, return [].
                                     g_issue["category"] = g_issue.get("module", "brand_voice")
                                 if "recommended_action" not in g_issue:
                                     g_issue["recommended_action"] = "Replace" if g_issue.get("suggested_replacement") else "Review"
+
+                                corr_type, clean_repl = determine_correction_strategy(
+                                    action=g_issue["recommended_action"],
+                                    replacement=g_issue.get("suggested_replacement"),
+                                    category=g_issue["category"]
+                                )
+                                g_issue["correction_type"] = corr_type
+                                g_issue["suggested_replacement"] = clean_repl
                                 issues.append(g_issue)
 
                     logger.info(f"Layer 2 Gemini analysis complete. Total aggregated findings: {len(issues)}")

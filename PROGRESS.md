@@ -284,6 +284,65 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Pytest Suite: **67 / 67 tests passing in 22.27s (100% success)**.
     - Next.js Production Build: **100% clean compilation across all 12 routes**.
 
+- [x] **Milestone 15: Global Dynamic Correction Engine & Apply Fix Architecture (Universal)**
+  - [x] **Root Cause Diagnosis & Engine Architecture Separation**:
+    - Identified and eliminated editorial instruction injection: previously, advice sentences (`"Substantiate promotional claims with verifiable use cases..."`, `"Change statement to align with approved fact..."`, `"Provide verified research citation..."`) were stored in `suggested_replacement` and inserted into content drafts.
+    - Architected strict separation of concerns in `backend/app/engine/correction_engine.py`:
+      - `explanation`: human explanation of compliance/brand risk.
+      - `recommended_action`: high-level workflow action (`Replace`, `Remove`, `Review`).
+      - `suggested_replacement`: **STRICTLY LITERAL replacement text** or `None`/`""`. Forbidden instruction phrases are blocked via `is_instruction_or_explanation()`.
+      - `correction_type`: categorizes every finding into 4 explicit operations: `REPLACE`, `REMOVE`, `REWRITE`, or `MANUAL_REVIEW`.
+  - [x] **Context-Aware Target Span Locator & Offset Recovery**:
+    - `locate_target_span()` accurately finds target phrases across revisions:
+      - Validates initial character offsets first.
+      - Recovers shifted offsets caused by earlier sequential edits anywhere in the document.
+      - Disambiguates repeated words using exact sentence containment and token-overlap scoring.
+      - Case-insensitive / normalized regex fallback.
+  - [x] **Smart Grammar, Punctuation & Capitalization Repair**:
+    - `clean_grammar_after_removal()` repairs collateral syntax damage when removing phrases:
+      - Collapses double spaces and dangling duplicate commas/periods (`", ," -> ","`, `", ." -> "."`).
+      - Removes dangling prepositions and conjunctions before sentence ends (`"fast and ."` -> `"fast."`).
+      - Cleans dangling conjunctions after colons (`": and "` -> `": "`).
+      - Preserves paragraph formatting and intentional line breaks (`\n\n`).
+    - `apply_context_aware_correction()` aligns capitalization dynamically (e.g. capitalized at sentence start).
+  - [x] **Safe Correction Validation Layer**:
+    - `validate_correction_safety()` validates that every proposed correction:
+      - Produces non-empty output.
+      - Meaningfully modifies target copy without silent no-ops.
+      - Contains zero injected editorial instruction markers.
+      - Preserves 100% of surrounding unrelated document copy.
+  - [x] **Dedicated Atomic Backend Apply-Fix Endpoint**:
+    - Implemented `POST /api/v1/analysis/submissions/{submission_id}/apply-fix`:
+      - Validates organizational tenant ownership and verifies issue is not already resolved.
+      - Refuses automatic application on `MANUAL_REVIEW` items with clear 400 error, keeping content pristine.
+      - Creates an immutable new `ContentVersion` recording the exact operation in `change_summary`.
+      - Updates `submission.current_version_id`.
+      - Marks `issue.is_resolved = True` and accepts linked suggestions.
+      - Atomically executes `run_analysis()`: recalculates overall compliance score, brand compliance, content quality, and publication risk; re-verifies claims against evidence; and logs an `APPLY_FIX` audit entry.
+  - [x] **Frontend Creator Workspace Polish**:
+    - Replaced naive client-side string replacement with the dedicated atomic backend endpoint.
+    - Updated `DetectedIssue` interface with `correction_type`.
+    - Context-aware UI action card rendering:
+      - `REPLACE` / `REWRITE`: Displays clean literal replacement preview and "Apply Fix" button.
+      - `REMOVE`: Displays clear "Action: Remove Risk Phrase" label and distinct "Remove Phrase" button.
+      - `MANUAL_REVIEW`: Displays "Manual Review Required" warning badge and guidance note, omitting the button to prevent content corruption.
+    - Dispatches `"claims-reverified"` custom event to automatically refresh Evidence Graph and Provenance Explorer in real time.
+  - [x] **Comprehensive Generalized Test Suite**:
+    - Created `backend/tests/test_apply_fix_comprehensive.py` with 10 exhaustive scenarios:
+      - `test_instruction_explanation_detection`: verifies explanation markers are flagged and valid replacements allowed.
+      - `test_determine_correction_strategy`: verifies strategy classification and sanitization.
+      - `test_locate_target_span_and_offset_recovery`: verifies offset shift recovery and sentence disambiguation.
+      - `test_clean_grammar_after_removal`: verifies punctuation and conjunction cleanup.
+      - `test_apply_context_aware_correction_capitalization`: verifies casing alignment.
+      - `test_apply_context_aware_correction_safety_rejection`: verifies refusal of instruction strings.
+      - `test_apply_fix_api_end_to_end`: verifies full API lifecycle with sequential version increments.
+      - `test_advertisement_absolute_guarantee_fix`: verifies dynamic ad guarantee correction.
+      - `test_press_release_informal_opener_fix`: verifies format-specific rewrite.
+      - `test_promotional_fluff_rejects_auto_fix_and_protects_content`: verifies complete content preservation when manual review is needed.
+    - Pytest Suite: **77 / 77 tests passing in 22.24s (100% success)**.
+    - Next.js Production Build: **100% clean compilation across all 12 routes**.
+
+
 
 
 

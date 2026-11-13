@@ -92,6 +92,8 @@ class DetectedIssue(Base):
     guideline_reference = Column(String(255), nullable=False)
     confidence = Column(Float, default=1.0, nullable=False)
     recommended_action = Column(String(30), default="Replace", nullable=True)
+    correction_type = Column(String(30), default="REPLACE", nullable=True)
+    suggested_replacement = Column(Text, nullable=True)
     detection_source = Column(String(50), default="Rule Engine", nullable=True)
     is_resolved = Column(Boolean, default=False, nullable=False)
     is_dismissed = Column(Boolean, default=False, nullable=False)

@@ -156,48 +156,40 @@ export default function CorrectionWorkspacePage() {
   };
 
   const handleApplyFix = async (issue: DetectedIssue) => {
-    const original = issue.matched_text;
-    const replacement = issue.suggested_replacement ?? "";
-    const isRemove = (issue.recommended_action || "").toLowerCase() === "remove" && !issue.suggested_replacement;
-
-    if (!editorContent.includes(original)) {
-      setNotification({
-        type: "error",
-        message: `Phrase "${original.slice(0, 35)}..." was not found in the editor (it may have already been changed).`
-      });
-      return;
-    }
-
-    const updatedText = isRemove
-      ? editorContent.replace(original, "").replace(/\s{2,}/g, " ")
-      : editorContent.replace(original, replacement);
-
-    setEditorContent(updatedText);
-
     try {
       setSaving(true);
-      // 1. Save new version to backend
-      const saveRes = await api.put(`/submissions/${id}/content`, {
-        content: updatedText,
-        change_summary: isRemove
-          ? `Removed risk phrase: '${original.slice(0, 30)}...'`
-          : `Applied fix: replaced '${original.slice(0, 30)}...' with '${replacement.slice(0, 30)}...'`
-      });
-      setSubmission(saveRes.data);
-      setAppliedIssues((prev) => new Set(prev).add(issue.id));
-
-      // 2. Immediately trigger re-analysis so the score recalculates and resolved issue is cleared
       setAnalyzing(true);
-      const analysisRes = await api.post(`/analysis/analyze/${id}`);
-      setReport(analysisRes.data);
-      setNotification({
-        type: "success",
-        message: `Applied fix and re-analyzed! Updated Compliance Score: ${analysisRes.data.compliance_score.toFixed(0)}/100.`
+
+      const res = await api.post(`/analysis/submissions/${id}/apply-fix`, {
+        issue_id: issue.id,
+        matched_text: issue.matched_text,
+        suggested_replacement: issue.suggested_replacement,
+        correction_type: issue.correction_type,
+        char_start: issue.char_start,
+        char_end: issue.char_end
       });
+
+      if (res.data && res.data.updated_content !== undefined) {
+        setEditorContent(res.data.updated_content);
+        if (res.data.report) {
+          setReport(res.data.report);
+        }
+        setAppliedIssues((prev) => new Set(prev).add(issue.id));
+
+        // Refresh Evidence Intelligence Graph & Claim Provenance
+        window.dispatchEvent(new CustomEvent("claims-reverified", { detail: { submissionId: id } }));
+
+        const opLabel = res.data.applied_operation === "REMOVE" ? "Removed risk phrase" : "Applied fix";
+        const scoreVal = res.data.report?.compliance_score ? res.data.report.compliance_score.toFixed(0) : "100";
+        setNotification({
+          type: "success",
+          message: `${opLabel} and re-analyzed! Updated Score: ${scoreVal}/100.`
+        });
+      }
     } catch (err: any) {
       setNotification({
         type: "error",
-        message: err.response?.data?.detail || "Failed to save revision and re-analyze."
+        message: err.response?.data?.detail || "Failed to apply fix."
       });
     } finally {
       setSaving(false);
@@ -989,66 +981,102 @@ export default function CorrectionWorkspacePage() {
                           </div>
                         ) : (
                           /* Replacement & Action Area */
-                          <div className="mt-3 pt-2.5 border-t border-midnight-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              {issue.suggested_replacement ? (
-                                <>
-                                  <span className="text-[10px] font-semibold text-emerald-800 block">Recommended fix:</span>
-                                  <span className="text-xs font-mono text-emerald-700 font-medium truncate block">
-                                    &ldquo;{issue.suggested_replacement}&rdquo;
-                                  </span>
-                                </>
-                              ) : (issue.recommended_action || "").toLowerCase() === "remove" ? (
-                                <span className="text-[11px] text-rose-700 font-medium">
-                                  Recommended fix: Remove sensitive text from copy.
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-midnight-500 font-medium">
-                                  Recommended fix: Review or verify against policy.
-                                </span>
-                              )}
-                            </div>
+                          (() => {
+                            const corrType = (
+                              issue.correction_type ||
+                              (issue.suggested_replacement
+                                ? "REPLACE"
+                                : (issue.recommended_action || "").toLowerCase() === "remove"
+                                ? "REMOVE"
+                                : "MANUAL_REVIEW")
+                            ).toUpperCase();
+                            const isRemove = corrType === "REMOVE";
+                            const isManualReview =
+                              corrType === "MANUAL_REVIEW" ||
+                              (!issue.suggested_replacement && !isRemove);
 
-                            <div className="shrink-0 flex items-center gap-1.5">
-                              {/* Dismiss Button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDismissingIssueId(issue.id);
-                                  setDismissReason("");
-                                }}
-                                className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-midnight-500 hover:text-midnight-800 hover:bg-lavender-100 transition-colors"
-                              >
-                                Dismiss
-                              </button>
-
-                              {/* Apply Fix Button */}
-                              {(issue.suggested_replacement || (issue.recommended_action || "").toLowerCase() === "remove") && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplyFix(issue)}
-                                  disabled={isApplied || saving}
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                                    isApplied
-                                      ? "bg-emerald-100 text-emerald-800 cursor-default"
-                                      : "bg-brand-500 hover:bg-brand-600 text-white shadow-sm"
-                                  }`}
-                                >
-                                  {isApplied ? (
+                            return (
+                              <div className="mt-3 pt-2.5 border-t border-midnight-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  {isManualReview ? (
                                     <>
-                                      <Check className="w-3 h-3 text-emerald-700" />
-                                      <span>Applied</span>
+                                      <span className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide block">
+                                        Manual Review Required
+                                      </span>
+                                      <span className="text-xs text-midnight-600 block">
+                                        Editorial judgment needed. Verify or substantiate against approved guidelines.
+                                      </span>
+                                    </>
+                                  ) : isRemove ? (
+                                    <>
+                                      <span className="text-[10px] font-semibold text-rose-800 uppercase tracking-wide block">
+                                        Action: Remove Risk Phrase
+                                      </span>
+                                      <span className="text-xs font-mono text-rose-700 block truncate max-w-sm">
+                                        Remove &ldquo;{issue.matched_text}&rdquo; from copy
+                                      </span>
                                     </>
                                   ) : (
                                     <>
-                                      <Sparkles className="w-3 h-3 text-brand-200" />
-                                      <span>Apply Fix</span>
+                                      <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wide block">
+                                        {corrType === "REWRITE" ? "Recommended Rewrite:" : "Recommended Replacement:"}
+                                      </span>
+                                      <span className="text-xs font-mono text-emerald-700 font-medium truncate block">
+                                        &ldquo;{issue.suggested_replacement}&rdquo;
+                                      </span>
                                     </>
                                   )}
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-1.5">
+                                  {/* Dismiss Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDismissingIssueId(issue.id);
+                                      setDismissReason("");
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-midnight-500 hover:text-midnight-800 hover:bg-lavender-100 transition-colors"
+                                  >
+                                    Dismiss
+                                  </button>
+
+                                  {/* Apply Fix / Remove Button */}
+                                  {!isManualReview && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplyFix(issue)}
+                                      disabled={isApplied || saving}
+                                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                        isApplied
+                                          ? "bg-emerald-100 text-emerald-800 cursor-default"
+                                          : isRemove
+                                          ? "bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+                                          : "bg-brand-500 hover:bg-brand-600 text-white shadow-sm"
+                                      }`}
+                                    >
+                                      {isApplied ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-700" />
+                                          <span>Applied</span>
+                                        </>
+                                      ) : isRemove ? (
+                                        <>
+                                          <Sparkles className="w-3 h-3 text-rose-200" />
+                                          <span>Remove Phrase</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="w-3 h-3 text-brand-200" />
+                                          <span>Apply Fix</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()
                         )}
                       </div>
                     );

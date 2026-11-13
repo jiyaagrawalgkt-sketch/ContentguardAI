@@ -452,8 +452,8 @@ def verify_claims_against_evidence(
                 best_status = ClaimVerificationStatus.OUTDATED.value
                 retrieved_evidence = f"Topic: {best_fact.topic}. Statement: {best_fact.statement}"
                 explanation = f"Supporting fact for '{best_fact.topic}' expired on {best_fact.expiry_date.isoformat()}."
-                suggested_correction = "Renew approval or update claim to reflect current validated data."
-                recommended_action = "Update_Source"
+                suggested_correction = None
+                recommended_action = "Review"
             else:
                 # Check for numerical or factual conflict
                 fact_nums = _extract_numbers(best_fact.statement or "")
@@ -480,12 +480,12 @@ def verify_claims_against_evidence(
                     best_status = ClaimVerificationStatus.CONFLICTING.value
                     retrieved_evidence = f"Approved Fact [{best_fact.topic}]: {best_fact.statement}"
                     explanation = f"Claim statement asserts '{claim_text}', but official approved fact states '{best_fact.statement}'."
-                    suggested_correction = f"Change statement to align with approved fact: '{best_fact.statement}'."
+                    suggested_correction = best_fact.statement
                     recommended_action = "Replace"
                 elif not has_corroboration:
                     best_status = ClaimVerificationStatus.UNSUPPORTED.value
                     explanation = f"No approved organizational documentation corroborates the assertion '{claim_text}' in the Knowledge Base."
-                    suggested_correction = f"Provide verified research citation or remove unverified claim '{claim_text}'."
+                    suggested_correction = ""
                     recommended_action = "Remove"
                 else:
                     best_status = ClaimVerificationStatus.SUPPORTED.value
@@ -509,8 +509,8 @@ def verify_claims_against_evidence(
                     source_validity_date = doc.validity_date
                     retrieved_evidence = chunk.chunk_text
                     explanation = f"Supporting document '{doc.title}' passed validity date on {doc.validity_date.isoformat()}."
-                    suggested_correction = "Consult legal or compliance team for renewed documentation."
-                    recommended_action = "Update_Source"
+                    suggested_correction = None
+                    recommended_action = "Review"
                 elif claim_text.lower() in chunk.chunk_text.lower():
                     best_status = ClaimVerificationStatus.SUPPORTED.value
                     source_doc_id = doc.id
@@ -528,18 +528,18 @@ def verify_claims_against_evidence(
                     source_validity_date = doc.validity_date
                     retrieved_evidence = chunk.chunk_text
                     explanation = f"Approved document '{doc.title}' covers this topic but does not substantiate the assertion '{claim_text}'."
-                    suggested_correction = "Harmonize statement with verified metrics from the approved document."
-                    recommended_action = "Replace"
+                    suggested_correction = None
+                    recommended_action = "Review"
                 else:
                     best_status = ClaimVerificationStatus.UNSUPPORTED.value
                     explanation = f"No approved organizational documentation corroborates the assertion '{claim_text}' in the Knowledge Base."
-                    suggested_correction = f"Provide verified research citation or remove unverified claim '{claim_text}'."
+                    suggested_correction = ""
                     recommended_action = "Remove"
             else:
                 best_status = ClaimVerificationStatus.UNSUPPORTED.value
                 explanation = f"No approved organizational documentation corroborates the assertion '{claim_text}' in the Knowledge Base."
-                suggested_correction = f"Provide verified proof or harmonize claim with official brand facts."
-                recommended_action = "Verify"
+                suggested_correction = None
+                recommended_action = "Review"
 
         verified_claims.append({
             "claim_text": claim_text,

@@ -19,6 +19,7 @@ from app.schemas.submission import (
     ReportOut,
     DetectedIssueOut,
 )
+from app.engine.correction_engine import determine_correction_strategy, is_instruction_or_explanation
 
 router = APIRouter()
 
@@ -30,11 +31,21 @@ def _format_report_out(report: Optional[AnalysisReport]) -> Optional[ReportOut]:
     issues_out = []
     for issue in report.issues:
         first_sugg = issue.suggestions[0] if issue.suggestions else None
+        raw_replacement = getattr(issue, "suggested_replacement", None) or (first_sugg.suggested_replacement if first_sugg else None)
+        category_val = getattr(issue, "category", issue.module) or "brand_voice"
+        action_val = getattr(issue, "recommended_action", "Replace") or "Replace"
+
+        corr_type, clean_repl = determine_correction_strategy(
+            action=action_val,
+            replacement=raw_replacement,
+            category=category_val
+        )
+
         issues_out.append(
             DetectedIssueOut(
                 id=issue.id,
                 module=issue.module,
-                category=getattr(issue, "category", issue.module) or "brand_voice",
+                category=category_val,
                 severity=issue.severity,
                 issue_type=issue.issue_type,
                 matched_text=issue.matched_text,
@@ -43,9 +54,10 @@ def _format_report_out(report: Optional[AnalysisReport]) -> Optional[ReportOut]:
                 explanation=issue.explanation,
                 guideline_reference=issue.guideline_reference,
                 confidence=issue.confidence,
-                recommended_action=getattr(issue, "recommended_action", "Replace") or "Replace",
+                recommended_action=action_val,
+                correction_type=corr_type,
                 detection_source=getattr(issue, "detection_source", "Rule Engine") or "Rule Engine",
-                suggested_replacement=first_sugg.suggested_replacement if first_sugg else None,
+                suggested_replacement=clean_repl,
                 rationale=first_sugg.rationale if first_sugg else None,
                 is_resolved=issue.is_resolved,
                 is_dismissed=getattr(issue, "is_dismissed", False) or False,

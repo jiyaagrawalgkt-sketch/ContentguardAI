@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.brand_knowledge import BrandGuideline, ApprovedFact, RestrictedTerm
 from app.models.analysis import IssueModule, IssueSeverity, IssueCategory
+from app.engine.correction_engine import determine_correction_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,13 @@ def run_deterministic_analysis(
         if span_overlaps(cat, start, end):
             return
         occupied_spans.append((cat, start, end))
+
+        corr_type, clean_repl = determine_correction_strategy(
+            action=recommended_action,
+            replacement=suggested_replacement,
+            category=cat
+        )
+
         findings.append({
             "category": cat,
             "module": module,
@@ -97,7 +105,8 @@ def run_deterministic_analysis(
             "explanation": explanation,
             "guideline_reference": guideline_reference,
             "recommended_action": recommended_action,
-            "suggested_replacement": suggested_replacement,
+            "correction_type": corr_type,
+            "suggested_replacement": clean_repl,
             "rationale": rationale or f"Recommended {recommended_action.lower()} action to maintain enterprise compliance.",
             "detection_source": "Rule Engine",
             "confidence": confidence
@@ -1001,7 +1010,7 @@ def run_deterministic_analysis(
                         explanation=f"Excessive promotional fluff detected: paragraph contains {p_matches} hyperbolic claims in a short span. High marketing hype weakens readability and diminishes executive credibility.",
                         guideline_reference="Tone & Voice: Editorial Balance, Readability & Content Substance",
                         recommended_action="Review",
-                        suggested_replacement="Substantiate promotional claims with verifiable use cases, benchmark metrics, or architectural capabilities.",
+                        suggested_replacement=None,
                         rationale="Balancing promotional assertions with concrete feature details elevates editorial readability."
                     )
 

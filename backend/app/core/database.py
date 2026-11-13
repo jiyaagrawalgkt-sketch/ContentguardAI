@@ -75,6 +75,10 @@ def init_db():
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN category VARCHAR(50) DEFAULT 'brand_voice'"))
                     if "recommended_action" not in existing_cols:
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN recommended_action VARCHAR(30) DEFAULT 'Replace'"))
+                    if "correction_type" not in existing_cols:
+                        conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN correction_type VARCHAR(30) DEFAULT 'REPLACE'"))
+                    if "suggested_replacement" not in existing_cols:
+                        conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN suggested_replacement TEXT"))
                     if "detection_source" not in existing_cols:
                         conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN detection_source VARCHAR(50) DEFAULT 'Rule Engine'"))
                     if "is_dismissed" not in existing_cols:
@@ -120,6 +124,8 @@ def init_db():
             else:
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'brand_voice'"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS recommended_action VARCHAR(30) DEFAULT 'Replace'"))
+                conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS correction_type VARCHAR(30) DEFAULT 'REPLACE'"))
+                conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS suggested_replacement TEXT"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS detection_source VARCHAR(50) DEFAULT 'Rule Engine'"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS is_dismissed BOOLEAN DEFAULT FALSE"))
                 conn.execute(sa_text("ALTER TABLE detected_issues ADD COLUMN IF NOT EXISTS dismiss_reason VARCHAR(255)"))

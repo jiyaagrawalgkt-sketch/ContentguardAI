@@ -16,12 +16,38 @@ from app.engine.evidence_engine import extract_factual_claims, verify_claims_aga
 from app.engine.scoring import calculate_comprehensive_scores
 from pydantic import BaseModel, Field
 from app.schemas.submission import ReportOut, DetectedIssueOut
+from app.engine.correction_engine import (
+    determine_correction_strategy,
+    is_instruction_or_explanation,
+    apply_context_aware_correction,
+    validate_correction_safety,
+    CorrectionValidationError,
+    ManualReviewRequiredError
+)
 
 router = APIRouter()
 
 
 class IssueDismissRequest(BaseModel):
     reason: str = Field(..., min_length=2, max_length=255)
+
+
+class ApplyFixRequest(BaseModel):
+    issue_id: str
+    matched_text: Optional[str] = None
+    suggested_replacement: Optional[str] = None
+    correction_type: Optional[str] = None
+    char_start: Optional[int] = None
+    char_end: Optional[int] = None
+
+
+class ApplyFixResponse(BaseModel):
+    success: bool
+    submission_id: str
+    version_id: str
+    applied_operation: str
+    updated_content: str
+    report: ReportOut
 
 
 @router.post("/issues/{issue_id}/dismiss", summary="Dismiss Finding")
@@ -125,6 +151,11 @@ def run_analysis(
             if c["verification_status"] in ["unsupported", "conflicting", "outdated"]:
                 matched_str = c["claim_text"]
                 if not any(iss.get("matched_text") == matched_str for iss in issues):
+                    corr_type, clean_repl = determine_correction_strategy(
+                        action=c.get("recommended_action"),
+                        replacement=c.get("suggested_correction"),
+                        category="misleading_claim"
+                    )
                     issues.append({
                         "module": "fact_checker",
                         "category": "misleading_claim",
@@ -135,7 +166,8 @@ def run_analysis(
                         "guideline_reference": f"Knowledge Hub: {c.get('source_document_name') or 'Approved Facts'}",
                         "confidence": c["confidence"],
                         "recommended_action": c["recommended_action"],
-                        "suggested_replacement": c.get("suggested_correction"),
+                        "correction_type": corr_type,
+                        "suggested_replacement": clean_repl,
                         "rationale": "Factual claim verification against official organizational knowledge base.",
                         "detection_source": "Evidence Intelligence Graph"
                     })
@@ -205,6 +237,12 @@ def run_analysis(
         action_val = item.get("recommended_action") or "Replace"
         source_val = item.get("detection_source") or ("AI Contextual Analysis" if engine_mode == "hybrid_gemini" and item.get("confidence", 1.0) < 0.95 else "Rule Engine")
 
+        corr_type, clean_repl = determine_correction_strategy(
+            action=action_val,
+            replacement=item.get("suggested_replacement"),
+            category=category_val
+        )
+
         issue = DetectedIssue(
             id=str(uuid.uuid4()),
             report_id=report.id,
@@ -219,6 +257,8 @@ def run_analysis(
             guideline_reference=item["guideline_reference"],
             confidence=item.get("confidence", 1.0),
             recommended_action=action_val,
+            correction_type=corr_type,
+            suggested_replacement=clean_repl,
             detection_source=source_val,
             is_resolved=False,
             is_dismissed=False
@@ -227,12 +267,12 @@ def run_analysis(
         db.commit()
 
         sugg = None
-        if item.get("suggested_replacement"):
+        if clean_repl is not None and clean_repl != "":
             sugg = CorrectionSuggestion(
                 id=str(uuid.uuid4()),
                 issue_id=issue.id,
                 original_text=item["matched_text"],
-                suggested_replacement=item["suggested_replacement"],
+                suggested_replacement=clean_repl,
                 rationale=item.get("rationale", "Recommended brand correction"),
                 is_accepted=False
             )
@@ -253,8 +293,9 @@ def run_analysis(
                 guideline_reference=issue.guideline_reference,
                 confidence=issue.confidence,
                 recommended_action=issue.recommended_action,
+                correction_type=issue.correction_type,
                 detection_source=issue.detection_source,
-                suggested_replacement=sugg.suggested_replacement if sugg else None,
+                suggested_replacement=clean_repl,
                 rationale=sugg.rationale if sugg else None,
                 is_resolved=issue.is_resolved,
                 is_dismissed=issue.is_dismissed,
@@ -296,4 +337,148 @@ def run_analysis(
         summary_verdict=report.summary_verdict,
         issues=issues_out,
         created_at=report.created_at
+    )
+
+
+@router.post("/submissions/{submission_id}/apply-fix", response_model=ApplyFixResponse, summary="Apply Context-Aware Fix")
+def apply_fix_endpoint(
+    submission_id: str,
+    payload: ApplyFixRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Applies a validated context-aware fix (REPLACE, REMOVE, or REWRITE) to the submission draft.
+    Prevents editorial instructions from entering copy, creates an immutable ContentVersion,
+    marks the issue resolved, and re-analyzes atomically.
+    """
+    submission = db.query(ContentSubmission).filter(
+        ContentSubmission.id == submission_id,
+        ContentSubmission.organization_id == current_user.organization_id
+    ).first()
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    # Get current version
+    current_version = None
+    if submission.current_version_id:
+        current_version = next((v for v in submission.versions if v.id == submission.current_version_id), None)
+    if not current_version and submission.versions:
+        current_version = submission.versions[-1]
+
+    if not current_version or not current_version.content_body:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Submission has no content to correct")
+
+    issue = db.query(DetectedIssue).filter(DetectedIssue.id == payload.issue_id).first()
+    if not issue:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found")
+
+    if issue.is_resolved:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This finding has already been resolved.")
+
+    # Match text and replacement resolution
+    matched = payload.matched_text or issue.matched_text
+    repl = payload.suggested_replacement if payload.suggested_replacement is not None else issue.suggested_replacement
+
+    # Determine strategy
+    corr_type, clean_repl = determine_correction_strategy(
+        action=issue.recommended_action,
+        replacement=repl,
+        category=issue.category
+    )
+
+    if payload.correction_type in ["REMOVE", "REPLACE", "REWRITE"]:
+        corr_type = payload.correction_type
+        if corr_type == "REMOVE":
+            clean_repl = ""
+
+    if corr_type == "MANUAL_REVIEW":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This finding requires manual editorial review and cannot be applied automatically."
+        )
+
+    # Apply context-aware correction
+    try:
+        corrected_content, actual_op = apply_context_aware_correction(
+            content=current_version.content_body,
+            matched_text=matched,
+            suggested_replacement=clean_repl,
+            correction_type=corr_type,
+            char_start=payload.char_start if payload.char_start is not None else issue.char_start,
+            char_end=payload.char_end if payload.char_end is not None else issue.char_end,
+            context_sentence=issue.explanation
+        )
+
+        validate_correction_safety(
+            original_content=current_version.content_body,
+            corrected_content=corrected_content,
+            matched_text=matched,
+            replacement=clean_repl,
+            correction_type=actual_op
+        )
+    except (CorrectionValidationError, ManualReviewRequiredError) as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to apply fix: {str(e)}")
+
+    # Create new ContentVersion
+    new_version_num = (
+        db.query(ContentVersion)
+        .filter(ContentVersion.submission_id == submission.id)
+        .count() + 1
+    )
+    summary = (
+        f"Removed risk phrase: '{matched[:35]}...'"
+        if actual_op == "REMOVE"
+        else f"Applied fix: replaced '{matched[:35]}...' with '{(clean_repl or '')[:35]}...'"
+    )
+
+    new_ver = ContentVersion(
+        id=str(uuid.uuid4()),
+        submission_id=submission.id,
+        version_number=new_version_num,
+        content_body=corrected_content,
+        change_summary=summary,
+        created_by=current_user.id
+    )
+    db.add(new_ver)
+    db.flush()
+
+    submission.current_version_id = new_ver.id
+    issue.is_resolved = True
+
+    # Mark suggestions accepted
+    for sugg in issue.suggestions:
+        sugg.is_accepted = True
+
+    db.commit()
+
+    # Record audit log
+    audit = AuditLog(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        action="APPLY_FIX",
+        entity_type="content_submission",
+        entity_id=submission.id,
+        details={
+            "issue_id": issue.id,
+            "operation": actual_op,
+            "previous_version": current_version.version_number,
+            "new_version": new_ver.version_number
+        }
+    )
+    db.add(audit)
+    db.commit()
+
+    # Re-run analysis on the new content version atomically
+    updated_report = run_analysis(submission_id=submission.id, current_user=current_user, db=db)
+
+    return ApplyFixResponse(
+        success=True,
+        submission_id=submission.id,
+        version_id=new_ver.id,
+        applied_operation=actual_op,
+        updated_content=corrected_content,
+        report=updated_report
     )

@@ -195,6 +195,7 @@ export interface DetectedIssue {
   guideline_reference: string;
   confidence: number;
   recommended_action?: RecommendedAction | string;
+  correction_type?: "REPLACE" | "REMOVE" | "REWRITE" | "MANUAL_REVIEW" | string;
   detection_source?: string;
   suggested_replacement?: string;
   rationale?: string;
