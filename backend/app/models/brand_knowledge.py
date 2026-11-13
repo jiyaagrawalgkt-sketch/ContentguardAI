@@ -78,3 +78,17 @@ class BrandAsset(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
     organization = relationship("Organization", back_populates="brand_assets")
+
+
+class BrandMemory(Base):
+    __tablename__ = "brand_memory"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    feedback_type = Column(String(50), nullable=False, index=True)  # approved_correction, false_positive, preferred_wording, custom_rule
+    original_phrase = Column(Text, nullable=False)
+    preferred_phrase = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_by_user_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+

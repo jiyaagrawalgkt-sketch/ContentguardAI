@@ -35,10 +35,18 @@ import {
   Cpu,
   Palette,
   Layers,
+  BookOpen,
+  Lock,
+  GitCompare,
+  FileCheck,
 } from "lucide-react";
 import { DetectedIssue, ContentSubmission, AnalysisReport } from "@/types";
 import { EvidenceGraph } from "@/components/evidence/EvidenceGraph";
 import { VisualAuditPanel } from "@/components/multimodal/VisualAuditPanel";
+import { BrandRiskRadar } from "@/components/features/BrandRiskRadar";
+import { ClaimProvenanceExplorer } from "@/components/features/ClaimProvenanceExplorer";
+import { PrePublicationGate } from "@/components/features/PrePublicationGate";
+import { VersionIntelligence } from "@/components/features/VersionIntelligence";
 
 interface ExtendedReport extends Omit<AnalysisReport, "issues"> {
   issues: DetectedIssue[];
@@ -52,7 +60,7 @@ export default function CorrectionWorkspacePage() {
   const [submission, setSubmission] = useState<ContentSubmission | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [report, setReport] = useState<ExtendedReport | null>(null);
-  const [workspaceTab, setWorkspaceTab] = useState<"text" | "evidence" | "multimodal">("text");
+  const [workspaceTab, setWorkspaceTab] = useState<"text" | "evidence" | "provenance" | "radar" | "gate" | "versions" | "multimodal">("text");
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -444,47 +452,119 @@ export default function CorrectionWorkspacePage() {
         )}
 
         {/* Workspace Feature Mode Selector (Round 3) */}
-        <div className="mb-6 flex flex-wrap items-center gap-2 p-1 rounded-2xl bg-white border border-midnight-200/80 shadow-sm w-fit">
+        <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-white border border-midnight-200/80 shadow-sm">
           <button
             onClick={() => setWorkspaceTab("text")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               workspaceTab === "text"
-                ? "bg-midnight-900 text-white shadow"
+                ? "bg-midnight-950 text-white shadow-sm"
                 : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
             }`}
           >
             <FileCheck2 className="w-3.5 h-3.5" />
-            <span>Text Governance & Violations</span>
+            <span>Editor & Violations</span>
           </button>
 
           <button
             onClick={() => setWorkspaceTab("evidence")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               workspaceTab === "evidence"
-                ? "bg-brand-600 text-white shadow"
+                ? "bg-brand-600 text-white shadow-sm"
                 : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Evidence Intelligence Graph</span>
+            <span>Evidence Graph</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("provenance")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "provenance"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Claim Provenance</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("radar")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "radar"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Brand Risk Radar</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("gate")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "gate"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Publication Gate</span>
+          </button>
+
+          <button
+            onClick={() => setWorkspaceTab("versions")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              workspaceTab === "versions"
+                ? "bg-brand-600 text-white shadow-sm"
+                : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
+            }`}
+          >
+            <GitCompare className="w-3.5 h-3.5" />
+            <span>Version Intelligence</span>
           </button>
 
           <button
             onClick={() => setWorkspaceTab("multimodal")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               workspaceTab === "multimodal"
-                ? "bg-indigo-600 text-white shadow"
+                ? "bg-indigo-600 text-white shadow-sm"
                 : "text-midnight-600 hover:text-midnight-950 hover:bg-lavender-50"
             }`}
           >
             <Palette className="w-3.5 h-3.5" />
-            <span>Multimodal Brand Intelligence</span>
+            <span>Visual Intelligence</span>
           </button>
         </div>
 
         {workspaceTab === "evidence" && (
           <div className="mb-8">
             <EvidenceGraph submissionId={id} submissionTitle={submission?.title} />
+          </div>
+        )}
+
+        {workspaceTab === "provenance" && (
+          <div className="mb-8">
+            <ClaimProvenanceExplorer submissionId={id} />
+          </div>
+        )}
+
+        {workspaceTab === "radar" && (
+          <div className="mb-8">
+            <BrandRiskRadar report={report} submissionTitle={submission?.title} />
+          </div>
+        )}
+
+        {workspaceTab === "gate" && (
+          <div className="mb-8">
+            <PrePublicationGate submissionId={id} submissionStatus={submission?.status} onRefresh={loadSubmission} />
+          </div>
+        )}
+
+        {workspaceTab === "versions" && submission && (
+          <div className="mb-8">
+            <VersionIntelligence submission={submission} />
           </div>
         )}
 
@@ -497,19 +577,41 @@ export default function CorrectionWorkspacePage() {
         {/* Side-by-Side Correction Workspace */}
         {workspaceTab === "text" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Pane: Content Editor (7 Cols) */}
+          {/* Left Pane: Content Editor (6 Cols) */}
           <div className="lg:col-span-6 bg-white rounded-3xl border border-midnight-100 shadow-card p-6 flex flex-col">
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-midnight-100">
+            <div className="flex flex-wrap items-center justify-between pb-3 mb-3 border-b border-midnight-100 gap-2">
               <div className="flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 text-brand-600" />
                 <h3 className="text-sm font-bold text-midnight-950">
                   Content Draft Workspace
                 </h3>
               </div>
-              <span className="text-[11px] text-midnight-400 font-mono">
-                {editorContent.length} chars • {editorContent.split(/\s+/).filter(Boolean).length} words
-              </span>
+              <div className="flex items-center gap-2 text-[11px] text-midnight-500 font-mono">
+                <span>{editorContent.length} chars</span>
+                <span>•</span>
+                <span>{editorContent.trim() ? editorContent.trim().split(/\s+/).length : 0} words</span>
+                <span>•</span>
+                <span>~{Math.max(1, Math.ceil((editorContent.trim().split(/\s+/).length || 1) / 200))} min read</span>
+              </div>
             </div>
+
+            {/* Outdated Analysis Warning if Copy was Modified */}
+            {editorContent !== submission?.current_content && (
+              <div className="mb-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  Copy modified in editor — analysis scores below reflect prior version.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleManualAnalyze}
+                  disabled={analyzing}
+                  className="font-bold underline text-amber-900 hover:text-black ml-2 text-[11px]"
+                >
+                  Re-Analyze
+                </button>
+              </div>
+            )}
 
             <textarea
               rows={18}
@@ -535,24 +637,25 @@ export default function CorrectionWorkspacePage() {
 
           {/* Right Pane: AI Report & Correction Cards (6 Cols) */}
           <div className="lg:col-span-6 space-y-4">
-            {/* Score Card */}
+            {/* Score Card: 4-Dimensional Metrics */}
             <div className="bg-white rounded-3xl border border-midnight-100 shadow-card p-6">
-              <div className="flex items-center justify-between pb-4 mb-4 border-b border-midnight-100">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-midnight-100">
                 <p className="text-xs font-bold text-midnight-500 uppercase tracking-wider">
-                  Compliance Score
+                  Governance & Compliance Radar
                 </p>
                 <span className="text-[10px] font-mono font-semibold px-2.5 py-1 rounded bg-lavender-100 text-midnight-700 flex items-center gap-1.5">
                   <Cpu className="w-3 h-3 text-brand-600" />
                   Engine: {analyzing
                     ? "Running Governance Scan..."
                     : report?.engine_mode === "hybrid_gemini"
-                    ? "Hybrid Analysis (Gemini + Rules)"
+                    ? "Hybrid (Gemini + Rules)"
                     : report?.engine_mode === "deterministic_fallback"
-                    ? "Deterministic Rules Engine"
+                    ? "Deterministic Rules"
                     : "Awaiting Analysis"}
                 </span>
               </div>
 
+              {/* Top Score & Publication Risk */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-extrabold text-midnight-950 font-mono">
@@ -560,24 +663,60 @@ export default function CorrectionWorkspacePage() {
                   </span>
                   <span className="text-sm text-midnight-400 font-semibold font-mono">/ 100</span>
                 </div>
-                {analyzing ? (
-                  <div className="px-3 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1.5">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>Analyzing...</span>
-                  </div>
-                ) : !report ? (
-                  <div className="px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                    Awaiting Analysis
-                  </div>
-                ) : (
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border ${scoreBadge.bgColor} ${scoreBadge.textColor} ${scoreBadge.borderColor}`}>
-                    {scoreBadge.label}
-                  </div>
-                )}
+
+                <div className="flex items-center gap-2">
+                  {report?.publication_risk && (
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      report.publication_risk === "low"
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                        : report.publication_risk === "medium"
+                        ? "bg-amber-100 text-amber-800 border-amber-200"
+                        : "bg-rose-100 text-rose-800 border-rose-200"
+                    }`}>
+                      {report.publication_risk} RISK
+                    </span>
+                  )}
+                  {analyzing ? (
+                    <div className="px-3 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1.5">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Analyzing...</span>
+                    </div>
+                  ) : !report ? (
+                    <div className="px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
+                      Awaiting Analysis
+                    </div>
+                  ) : (
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold border ${scoreBadge.bgColor} ${scoreBadge.textColor} ${scoreBadge.borderColor}`}>
+                      {scoreBadge.label}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3 Separated Pillar Scores (Part 2.2) */}
+              <div className="grid grid-cols-3 gap-2.5 mb-4 text-xs">
+                <div className="p-3 rounded-2xl bg-lavender-50/70 border border-midnight-100">
+                  <span className="text-[10px] text-midnight-500 font-semibold block">Brand Voice</span>
+                  <span className="text-base font-extrabold text-midnight-950 font-mono">
+                    {report?.brand_compliance_score !== undefined ? `${report.brand_compliance_score.toFixed(0)}%` : "100%"}
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-lavender-50/70 border border-midnight-100">
+                  <span className="text-[10px] text-midnight-500 font-semibold block">Evidence Confidence</span>
+                  <span className="text-base font-extrabold text-midnight-950 font-mono">
+                    {report?.evidence_confidence_score !== undefined ? `${report.evidence_confidence_score.toFixed(0)}%` : "100%"}
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-lavender-50/70 border border-midnight-100">
+                  <span className="text-[10px] text-midnight-500 font-semibold block">Content Quality</span>
+                  <span className="text-base font-extrabold text-midnight-950 font-mono">
+                    {report?.content_quality_score !== undefined ? `${report.content_quality_score.toFixed(0)}%` : "95%"}
+                  </span>
+                </div>
               </div>
 
               {/* Severity Breakdown Bar */}
-              <div className="grid grid-cols-4 gap-2 pt-2 text-center text-xs">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
                 <div className="p-2 rounded-xl bg-rose-50 border border-rose-100">
                   <span className="block text-sm font-extrabold text-rose-700 font-mono">{report?.critical_count || 0}</span>
                   <span className="text-[10px] font-semibold text-rose-600 uppercase">Critical</span>

@@ -1,7 +1,7 @@
 from app.core.database import Base
 from app.models.organization import Organization
 from app.models.user import User, UserRole, RefreshToken
-from app.models.brand_knowledge import BrandGuideline, ApprovedFact, RestrictedTerm, BrandAsset
+from app.models.brand_knowledge import BrandGuideline, ApprovedFact, RestrictedTerm, BrandAsset, BrandMemory
 from app.models.submission import ContentSubmission, UploadedFile, ContentVersion, SubmissionStatus, ContentCategory
 from app.models.analysis import (
     AnalysisReport,

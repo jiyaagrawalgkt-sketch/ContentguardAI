@@ -59,6 +59,11 @@ def _format_report_out(report: Optional[AnalysisReport]) -> Optional[ReportOut]:
         engine_mode=report.engine_mode,
         compliance_score=report.compliance_score,
         compliance_rating=report.compliance_rating,
+        brand_compliance_score=getattr(report, "brand_compliance_score", 100.0),
+        evidence_confidence_score=getattr(report, "evidence_confidence_score", 100.0),
+        content_quality_score=getattr(report, "content_quality_score", 100.0),
+        publication_risk=getattr(report, "publication_risk", "low"),
+        score_breakdown=getattr(report, "score_breakdown", None),
         total_issues=report.total_issues,
         critical_count=report.critical_count,
         high_count=report.high_count,
@@ -332,3 +337,101 @@ def submit_for_review(
     db.commit()
 
     return _format_submission_out(submission)
+
+
+@router.get("/campaigns/{campaign_name}/consistency", summary="Campaign Cross-Submission Consistency Checker")
+def check_campaign_consistency(
+    campaign_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Round 3 Feature 6: Compares multiple content submissions within the same campaign
+    to detect conflicting numerical claims, divergent product metrics, and inconsistent terminology.
+    """
+    clean_camp = campaign_name.strip()
+    subs = db.query(ContentSubmission).filter(
+        ContentSubmission.organization_id == current_user.organization_id,
+        ContentSubmission.campaign_name == clean_camp
+    ).all()
+
+    if not subs:
+        return {
+            "campaign_name": clean_camp,
+            "submissions_count": 0,
+            "consistency_score": 100.0,
+            "status": "No submissions found for this campaign.",
+            "inconsistencies": []
+        }
+
+    # Gather claims and latest copy across submissions
+    items = []
+    from app.engine.evidence_engine import extract_factual_claims
+    import re
+
+    for s in subs:
+        content_body = ""
+        if s.current_version_id:
+            cv = next((v for v in s.versions if v.id == s.current_version_id), None)
+            if cv:
+                content_body = cv.content_body
+        if not content_body and s.versions:
+            content_body = s.versions[-1].content_body
+
+        claims = extract_factual_claims(content_body) if content_body else []
+        items.append({
+            "id": s.id,
+            "title": s.title,
+            "category": s.category,
+            "content": content_body,
+            "claims": claims
+        })
+
+    inconsistencies = []
+    # 1. Compare numerical claims across submissions
+    metrics_by_topic: dict = {}
+    for sub in items:
+        for c in sub["claims"]:
+            c_text = c["claim_text"].lower()
+            # Normalize key
+            key = None
+            if "uptime" in c_text or "%" in c_text:
+                key = "Availability / SLA Metric"
+            elif "$" in c_text or "arr" in c_text:
+                key = "Pricing / Revenue Metric"
+            elif "latency" in c_text or "ms" in c_text:
+                key = "Performance / Latency Metric"
+
+            if key:
+                if key not in metrics_by_topic:
+                    metrics_by_topic[key] = []
+                metrics_by_topic[key].append({
+                    "submission_id": sub["id"],
+                    "submission_title": sub["title"],
+                    "claim_text": c["claim_text"],
+                    "sentence": c.get("sentence", "")
+                })
+
+    # Check for discrepancies in the same metric topic
+    for topic, occurrences in metrics_by_topic.items():
+        unique_claims = {occ["claim_text"].strip().lower() for occ in occurrences}
+        if len(unique_claims) > 1:
+            inconsistencies.append({
+                "metric_category": topic,
+                "discrepancy": f"Conflicting values detected: {', '.join(unique_claims)}",
+                "affected_submissions": occurrences,
+                "severity": "high",
+                "recommendation": f"Standardize on the organization approved specification for {topic}."
+            })
+
+    # Compute consistency score
+    consistency_score = max(0.0, 100.0 - (len(inconsistencies) * 20.0))
+
+    return {
+        "campaign_name": clean_camp,
+        "submissions_count": len(subs),
+        "consistency_score": consistency_score,
+        "status": "Consistent" if not inconsistencies else f"{len(inconsistencies)} Inconsistency Detected",
+        "inconsistencies": inconsistencies
+    }
+

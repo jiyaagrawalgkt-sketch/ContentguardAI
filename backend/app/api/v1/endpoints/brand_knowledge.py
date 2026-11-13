@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.permissions import get_current_user, require_admin, require_any_authenticated
 from app.models.user import User
-from app.models.brand_knowledge import BrandGuideline, ApprovedFact, RestrictedTerm, BrandAsset
+from app.models.brand_knowledge import BrandGuideline, ApprovedFact, RestrictedTerm, BrandAsset, BrandMemory
 from app.models.audit import AuditLog
 
 router = APIRouter()
@@ -312,3 +312,71 @@ def delete_brand_asset(
     db.delete(a)
     db.commit()
     return {"message": "Brand asset deleted successfully."}
+
+
+@router.get("/memory", summary="Get Organization Brand Memory & Learning")
+def get_brand_memory(
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db)
+):
+    """Retrieves accumulated reviewer feedback, preferred phrases, and false-positive exemptions."""
+    records = db.query(BrandMemory).filter(
+        BrandMemory.organization_id == current_user.organization_id
+    ).order_by(BrandMemory.created_at.desc()).all()
+
+    return [
+        {
+            "id": r.id,
+            "feedback_type": r.feedback_type,
+            "original_phrase": r.original_phrase,
+            "preferred_phrase": r.preferred_phrase,
+            "notes": r.notes,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in records
+    ]
+
+
+@router.post("/memory", summary="Record Reviewer Feedback / Custom Preference")
+def record_brand_memory(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db)
+):
+    """Saves reviewer feedback (e.g. false positive, preferred wording) into organization brand memory."""
+    mem = BrandMemory(
+        id=str(uuid.uuid4()),
+        organization_id=current_user.organization_id,
+        feedback_type=payload.get("feedback_type", "preferred_wording"),
+        original_phrase=payload.get("original_phrase", "").strip(),
+        preferred_phrase=payload.get("preferred_phrase", "").strip() or None,
+        notes=payload.get("notes", "").strip() or None,
+        created_by_user_id=current_user.id
+    )
+    db.add(mem)
+    db.commit()
+    db.refresh(mem)
+
+    return {
+        "id": mem.id,
+        "message": "Feedback recorded in brand memory successfully.",
+        "feedback_type": mem.feedback_type
+    }
+
+
+@router.delete("/memory/{memory_id}", summary="Delete Brand Memory Entry")
+def delete_brand_memory(
+    memory_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    mem = db.query(BrandMemory).filter(
+        BrandMemory.id == memory_id,
+        BrandMemory.organization_id == current_user.organization_id
+    ).first()
+    if not mem:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Record not found")
+    db.delete(mem)
+    db.commit()
+    return {"message": "Memory entry deleted successfully."}
+

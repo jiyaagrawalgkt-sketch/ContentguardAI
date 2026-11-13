@@ -58,6 +58,11 @@ class ReportOut(BaseModel):
     engine_mode: str
     compliance_score: float
     compliance_rating: str
+    brand_compliance_score: Optional[float] = 100.0
+    evidence_confidence_score: Optional[float] = 100.0
+    content_quality_score: Optional[float] = 100.0
+    publication_risk: Optional[str] = "low"
+    score_breakdown: Optional[Any] = None
     total_issues: int
     critical_count: int
     high_count: int

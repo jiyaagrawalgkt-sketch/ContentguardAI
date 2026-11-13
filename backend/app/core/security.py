@@ -137,3 +137,33 @@ def verify_totp(secret: str, code: str) -> bool:
         return totp.verify(code.strip(), valid_window=1)
     except Exception:
         return False
+
+
+DISPOSABLE_DOMAINS = {
+    "tempmail.com", "throwawaymail.com", "mailinator.com", "guerrillamail.com",
+    "sharklasers.com", "10minutemail.com", "trashmail.com", "yopmail.com",
+    "dispostable.com", "fakeinbox.com"
+}
+
+
+def validate_email_address(email: str) -> Tuple[bool, str]:
+    """
+    Validates email syntax, domain structure, and checks against disposable domains.
+    """
+    if not email or len(email.strip()) < 5:
+        return False, "Email address is required."
+
+    cleaned = email.strip().lower()
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if not re.match(email_regex, cleaned):
+        return False, "Please provide a valid email format (e.g., user@company.com)."
+
+    domain = cleaned.split("@")[-1]
+    if "." not in domain or len(domain.split(".")[-1]) < 2:
+        return False, "Email domain appears invalid or incomplete."
+
+    if domain in DISPOSABLE_DOMAINS:
+        return False, "Temporary and disposable email domains are not permitted for enterprise registration."
+
+    return True, "Email is valid."
+

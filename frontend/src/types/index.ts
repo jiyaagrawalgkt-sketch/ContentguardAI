@@ -194,6 +194,16 @@ export interface AnalysisReport {
   engine_mode: "hybrid_gemini" | "deterministic_fallback";
   compliance_score: number;
   compliance_rating: "compliant" | "needs_review" | "high_risk" | "critical_violations";
+  brand_compliance_score?: number;
+  evidence_confidence_score?: number;
+  content_quality_score?: number;
+  publication_risk?: "low" | "medium" | "high" | "critical";
+  score_breakdown?: {
+    brand_deductions?: Array<{ issue: string; severity: string; penalty: number; reason: string }>;
+    evidence_deductions?: Array<{ claim: string; status: string; penalty: number; reason: string }>;
+    quality_deductions?: Array<{ metric: string; penalty: number; reason: string }>;
+    formula?: string;
+  };
   total_issues: number;
   critical_count: number;
   high_count: number;

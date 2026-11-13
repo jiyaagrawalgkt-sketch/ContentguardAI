@@ -289,18 +289,52 @@ export function EvidenceGraph({ submissionId, submissionTitle }: EvidenceGraphPr
               <Loader2 className="w-7 h-7 animate-spin text-brand-400 mx-auto" />
               <p className="text-xs text-midnight-400">Loading factual graph nodes...</p>
             </div>
-          ) : filteredClaims.length === 0 ? (
+          ) : error ? (
             <div className="py-20 text-center space-y-3">
-              <Sparkles className="w-8 h-8 text-midnight-500 mx-auto" />
-              <p className="text-xs text-midnight-300 font-semibold">
-                No factual claims detected for this filter.
+              <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
+              <p className="text-xs text-rose-300 font-semibold">{error}</p>
+              <button
+                onClick={fetchEvidence}
+                className="px-3.5 py-1.5 rounded-xl bg-midnight-800 hover:bg-midnight-700 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Evidence Retrieval</span>
+              </button>
+            </div>
+          ) : claims.length === 0 ? (
+            <div className="py-20 text-center space-y-2 px-6">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+              <p className="text-sm text-white font-bold">
+                No factual claims were detected in this content.
+              </p>
+              <p className="text-xs text-midnight-400 max-w-sm mx-auto leading-relaxed">
+                This copy does not contain explicit numerical, SLA, benchmark, or certification assertions. Brand guidelines, tone of voice, and restricted terminology are evaluated independently.
+              </p>
+              <div className="pt-2">
+                <button
+                  onClick={handleRunVerification}
+                  disabled={verifying}
+                  className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                >
+                  {verifying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  <span>Scan & Re-Verify Claims</span>
+                </button>
+              </div>
+            </div>
+          ) : filteredClaims.length === 0 ? (
+            <div className="py-20 text-center space-y-2 px-6">
+              <Info className="w-8 h-8 text-brand-400 mx-auto" />
+              <p className="text-sm text-white font-bold capitalize">
+                No {filterStatus} claims detected.
+              </p>
+              <p className="text-xs text-midnight-400">
+                There are {claims.length} claims in this submission. Reset filter to see all nodes.
               </p>
               <button
-                onClick={handleRunVerification}
-                disabled={verifying}
-                className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold"
+                onClick={() => setFilterStatus("all")}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-midnight-800 text-white text-xs font-semibold hover:bg-midnight-700"
               >
-                {verifying ? "Verifying..." : "Scan & Extract Claims Now"}
+                Reset Filter to All ({claims.length})
               </button>
             </div>
           ) : (

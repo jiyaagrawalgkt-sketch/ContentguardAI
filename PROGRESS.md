@@ -196,3 +196,37 @@ $$\text{User/Org Management} \longrightarrow \text{Creator Studio} \longrightarr
     - Verified all 56 backend tests passing (100% success).
     - Verified Next.js production build compiling all 12 routes with zero errors.
 
+- [x] **Milestone 12: Round 3 Enterprise Upgrade, Unified Scoring, & Distinctive Governance Features**
+  - [x] **Part 1 — Modernized Single Login & Multi-Role Demo Auto-Fill**:
+    - Removed large Creator-only callout banner above the login form.
+    - Clean, modern enterprise login experience: email, password, show/hide password toggle, remember me checkbox, and forgot password modal.
+    - Small collapsible "Explore Demo Accounts" drawer below the login card featuring 3 role personas (Creator, Reviewer, Administrator) that auto-fill credentials into the standard form.
+    - Added RFC email syntax & disposable domain validation to `/auth/register`.
+    - Added email verification endpoints (`POST /auth/verify-email`, `POST /auth/resend-verification`) and password reset endpoints (`POST /auth/forgot-password`, `POST /auth/reset-password`).
+  - [x] **Part 2 — Unified Analysis Engine & Non-Contradictory Multi-Dimensional Scoring**:
+    - Unified the analysis pipeline into an atomic single execution: Content Input $\rightarrow$ Rule Engine & AI $\rightarrow$ Claim Extraction $\rightarrow$ Knowledge Retrieval $\rightarrow$ Evidence Verification $\rightarrow$ Synchronized Database Persistence $\rightarrow$ Comprehensive Scoring.
+    - Separated 4 core governance dimensions: Brand Compliance Score (Voice & Rules), Evidence Confidence Score (Claims & Citations), Content Quality Score (Readability & Length), and Publication Risk (Low/Med/High/Critical).
+    - A 100/100 score is mathematically prevented if any unverified or unsupported factual claim exists.
+    - Fixed the "99.9% uptime" scenario: verified facts achieve 100% evidence confidence, unverified metrics are penalized and surfaced as actionable findings.
+  - [x] **Part 3 — Evidence Intelligence Graph Upgrades**:
+    - Fixed Scenario E: When all claims are supported, renders the full green node-link topology without false empty states.
+    - Fixed Scenario F: Clear informative empty state when content contains no factual claims.
+    - Fixed Scenario G: Dedicated error state with 1-click retry.
+    - Retained zoom (+/-), pan, fit to screen, status filters, and citation inspection drawer.
+  - [x] **Part 4 — Interactive Content Workspace Intelligence**:
+    - Live content metrics bar: character count, word count, reading time estimation, detected claims, and unresolved issues.
+    - Added real-time "Copy modified in editor" indicator warning creators when editor changes require re-analysis.
+    - Interactive 1-click "Apply Fix" auto-remediation updating text, saving version, and triggering instant score recalculation.
+  - [x] **Part 7 — Distinctive Round 3 Features Built & Integrated**:
+    - **Feature 1: Brand Risk Radar** (`BrandRiskRadar.tsx`): 5-vector safety overview (Factual Accuracy, Brand Voice, Restricted Language, Sensitive Data, and Readability).
+    - **Feature 2: Claim Provenance Explorer** (`ClaimProvenanceExplorer.tsx`): Tracing every claim to original sentence, matching approved fact, cited document passage, and expiration date.
+    - **Feature 3: Smart Pre-Publication Gate** (`PrePublicationGate.tsx` & `/publishing/{id}/gate-status`): 5-step checklist evaluating analysis, critical violations, high-risk violations, evidence verification, and reviewer sign-off before certifying release.
+    - **Feature 4: Brand Memory & Learning** (`BrandMemory` table & `/brand-knowledge/memory`): Reviewer feedback, preferred phrases, and exemption logging.
+    - **Feature 5: Version Intelligence & Diff** (`VersionIntelligence.tsx`): Side-by-side revision viewer, change summaries, and character metrics delta.
+    - **Feature 6: Campaign Consistency Checker** (`/submissions/campaigns/{campaign_name}/consistency`): Cross-submission audit detecting divergent numbers, conflicting pricing, and mismatched product claims across a campaign.
+    - **Feature 7: Visual Brand Intelligence** (`VisualAuditPanel.tsx`): Image contrast ratio, palette compliance, and OCR typography scanning.
+  - [x] **Part 10 — Automated Test Verification**:
+    - Full Pytest Suite: **60 / 60 tests passing in 17.89s (100% success)**.
+    - Next.js Production Build: **100% clean compilation** across all 12 routes with zero errors.
+
+

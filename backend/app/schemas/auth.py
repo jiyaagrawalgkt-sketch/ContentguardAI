@@ -34,6 +34,7 @@ class UserOut(BaseModel):
     organization_id: str
     organization_name: Optional[str] = None
     is_active: bool
+    is_verified: bool = True
     created_at: datetime
 
 
@@ -63,3 +64,20 @@ class TokenPayload(BaseModel):
     role: str
     org_id: str
     exp: int
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(..., description="User email address")
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., description="User email address")
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6)

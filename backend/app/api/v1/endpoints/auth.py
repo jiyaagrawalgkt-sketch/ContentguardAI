@@ -13,6 +13,7 @@ from app.core.security import (
     hash_password,
     verify_password,
     validate_password_complexity,
+    validate_email_address,
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
@@ -34,6 +35,10 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     MFASetupResponse,
     MFAVerifyRequest,
+    VerifyEmailRequest,
+    ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from scripts.seed_demo import seed_demo_environment
 
@@ -49,6 +54,7 @@ def _format_user_out(user: User) -> UserOut:
         organization_id=user.organization_id,
         organization_name=user.organization.name if user.organization else None,
         is_active=user.is_active,
+        is_verified=getattr(user, "is_verified", True),
         created_at=user.created_at,
     )
 
@@ -86,6 +92,14 @@ def _issue_tokens_for_user(user: User, db: Session) -> Dict[str, str]:
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED, summary="Register User")
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
     """Register a new user and assign to an organization with zero-trust validation."""
+    # Enforce email format and domain validation
+    is_email_valid, email_reason = validate_email_address(user_in.email)
+    if not is_email_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=email_reason,
+        )
+
     # Enforce password complexity
     is_valid, reason = validate_password_complexity(user_in.password)
     if not is_valid:
@@ -137,6 +151,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     if role not in [r.value for r in UserRole]:
         role = UserRole.CREATOR.value
 
+    v_token = uuid.uuid4().hex
     user = User(
         id=str(uuid.uuid4()),
         organization_id=org.id,
@@ -145,6 +160,8 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         full_name=user_in.full_name.strip(),
         role=role,
         is_active=True,
+        is_verified=True,
+        verification_token=v_token,
         mfa_enabled=False
     )
     db.add(user)
@@ -574,3 +591,82 @@ def list_demo_accounts():
             "description": "Audit claims against approved evidence graph, inspect document validity, and verify risk posture."
         }
     ]
+
+
+@router.post("/verify-email", summary="Verify Email Address")
+def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Validates an email verification token and marks user as verified."""
+    user = db.query(User).filter(User.verification_token == payload.token).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token."
+        )
+
+    user.is_verified = True
+    user.verification_token = None
+    db.commit()
+
+    return {"message": "Email address verified successfully. You may now sign in.", "email": user.email}
+
+
+@router.post("/resend-verification", summary="Resend Email Verification")
+def resend_verification(payload: ResendVerificationRequest, db: Session = Depends(get_db)):
+    """Regenerates and issues a fresh verification token for unverified accounts."""
+    email_clean = payload.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    if not user:
+        # Avoid user enumeration
+        return {"message": "If an account exists with this email, a verification link has been sent."}
+
+    if user.is_verified:
+        return {"message": "Account is already verified."}
+
+    user.verification_token = uuid.uuid4().hex
+    db.commit()
+
+    return {
+        "message": "Verification code dispatched.",
+        "email": user.email,
+        "verification_token": user.verification_token
+    }
+
+
+@router.post("/forgot-password", summary="Request Password Reset")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Initiates a secure password reset flow by issuing a reset token."""
+    email_clean = payload.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email_clean).first()
+    if not user:
+        return {"message": "If this email is registered, password reset instructions have been dispatched."}
+
+    user.reset_password_token = uuid.uuid4().hex
+    db.commit()
+
+    return {
+        "message": "Password reset token generated.",
+        "email": user.email,
+        "reset_token": user.reset_password_token
+    }
+
+
+@router.post("/reset-password", summary="Reset Password with Token")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Applies a new password verified against complexity rules and reset token."""
+    user = db.query(User).filter(User.reset_password_token == payload.token).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token."
+        )
+
+    is_valid, reason = validate_password_complexity(payload.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.reset_password_token = None
+    db.commit()
+
+    return {"message": "Password has been successfully reset. Please sign in with your new password."}
+

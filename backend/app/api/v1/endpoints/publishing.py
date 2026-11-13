@@ -4,14 +4,85 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.permissions import require_reviewer
+from app.core.permissions import require_reviewer, require_any_authenticated
 from app.models.user import User
 from app.models.submission import ContentSubmission, SubmissionStatus
 from app.models.publication import PublishedContent
+from app.models.knowledge_base import ExtractedClaim
 from app.models.audit import AuditLog
 from app.schemas.review import PublishedContentOut
 
 router = APIRouter()
+
+
+@router.get("/{submission_id}/gate-status", summary="Smart Pre-Publication Gate Status")
+def get_pre_publication_gate_status(
+    submission_id: str,
+    current_user: User = Depends(require_any_authenticated),
+    db: Session = Depends(get_db)
+):
+    """
+    Round 3 Feature 3: Smart Pre-Publication Gate.
+    Verifies that all criteria (zero critical violations, verified evidence, reviewer approval)
+    are satisfied before allowing publication.
+    """
+    submission = db.query(ContentSubmission).filter(
+        ContentSubmission.id == submission_id,
+        ContentSubmission.organization_id == current_user.organization_id
+    ).first()
+
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    report = submission.analysis_reports[-1] if submission.analysis_reports else None
+    claims = db.query(ExtractedClaim).filter(
+        ExtractedClaim.submission_id == submission_id
+    ).all()
+
+    # Evaluation of gates
+    blockers = []
+    if not report:
+        gate_status = "not_analyzed"
+        blockers.append("Content has not been analyzed yet.")
+        can_publish = False
+    elif submission.status == SubmissionStatus.CHANGES_REQUESTED.value:
+        gate_status = "changes_requested"
+        blockers.append(f"Reviewer requested revisions: {submission.latest_review_feedback or 'Pending edits'}")
+        can_publish = False
+    elif report.critical_count > 0:
+        gate_status = "needs_attention"
+        blockers.append(f"{report.critical_count} critical policy violation(s) must be resolved.")
+        can_publish = False
+    elif any(c.verification_status in ["conflicting", "unsupported"] for c in claims):
+        gate_status = "needs_attention"
+        unverified_cnt = sum(1 for c in claims if c.verification_status in ["conflicting", "unsupported"])
+        blockers.append(f"{unverified_cnt} factual claim(s) lack supporting evidence in Knowledge Hub.")
+        can_publish = False
+    elif submission.status != SubmissionStatus.APPROVED.value and submission.status != SubmissionStatus.PUBLISHED.value:
+        gate_status = "awaiting_review"
+        blockers.append("Submission is awaiting formal review by an authorized reviewer.")
+        can_publish = False
+    else:
+        gate_status = "approved_for_publication"
+        can_publish = True
+
+    checks = {
+        "analysis_completed": report is not None,
+        "zero_critical_violations": (report.critical_count == 0) if report else False,
+        "zero_high_risk_violations": (report.high_count == 0) if report else False,
+        "evidence_verified": not any(c.verification_status in ["conflicting", "unsupported"] for c in claims),
+        "reviewer_approved": submission.status in [SubmissionStatus.APPROVED.value, SubmissionStatus.PUBLISHED.value]
+    }
+
+    return {
+        "submission_id": submission_id,
+        "gate_status": gate_status,
+        "can_publish": can_publish,
+        "checks": checks,
+        "blockers": blockers,
+        "status_label": gate_status.replace("_", " ").title()
+    }
+
 
 
 @router.post("/{submission_id}/publish", response_model=PublishedContentOut, summary="Publish Approved Content")

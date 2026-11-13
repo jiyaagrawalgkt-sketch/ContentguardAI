@@ -92,7 +92,8 @@ def seed_demo_environment(db=None):
                     hashed_password=hash_password(user_data["password"]),
                     full_name=user_data["full_name"],
                     role=user_data["role"],
-                    is_active=True
+                    is_active=True,
+                    is_verified=True
                 )
                 db.add(user)
                 db.commit()
@@ -102,6 +103,7 @@ def seed_demo_environment(db=None):
                 existing.hashed_password = hash_password(user_data["password"])
                 existing.full_name = user_data["full_name"]
                 existing.role = user_data["role"]
+                existing.is_verified = True
                 db.commit()
 
         # 3. Brand Guidelines
