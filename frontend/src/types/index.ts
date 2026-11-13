@@ -76,6 +76,8 @@ export interface VisualAnalysisReport {
   report_id: string;
   submission_id?: string;
   filename?: string;
+  title?: string;
+  preset_id?: string;
   dimensions: string;
   aspect_ratio: string;
   visual_score: number;

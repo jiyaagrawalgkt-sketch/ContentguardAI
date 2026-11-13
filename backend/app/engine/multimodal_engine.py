@@ -4,7 +4,7 @@ import math
 import re
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple, Set
-from PIL import Image, ImageEnhance, ImageDraw, ImageFilter, ImageStat
+from PIL import Image, ImageEnhance, ImageDraw, ImageFilter, ImageStat, PngImagePlugin
 
 from app.models.multimodal import (
     VisualAnalysisReport,
@@ -335,6 +335,81 @@ VERIFIED_BRAND_REGISTRY: Dict[str, Dict[str, Any]] = {
         ],
         "replacement_svg": "https://www.lg.com/assets/lg_logo.svg",
         "verified": True
+    },
+    "pepsi": {
+        "brand_name": "Pepsi",
+        "canonical_colors": [
+            {"name": "Pepsi Blue", "hex": "#004B93", "rgb": (0, 75, 147), "tolerance": 45.0, "is_primary": True},
+            {"name": "Pepsi Red", "hex": "#C9002B", "rgb": (201, 0, 43), "tolerance": 40.0, "is_primary": False},
+            {"name": "White", "hex": "#FFFFFF", "rgb": (255, 255, 255), "tolerance": 25.0, "is_primary": False, "is_monochrome": True},
+            {"name": "Black", "hex": "#000000", "rgb": (0, 0, 0), "tolerance": 25.0, "is_primary": False, "is_monochrome": True},
+        ],
+        "canonical_aspect_ratio": 1.0,  # Circular globe is canonical 1:1
+        "wordmark_aspect_ratio": 3.5,  # Combo globe + typography wordmark
+        "min_clearspace_ratio": 0.25,
+        "guideline_url": "https://www.pepsi.com/",
+        "guideline_title": "Official Pepsi Brand Identity & Visual Guidelines",
+        "retrieval_date": "2026-02-12",
+        "verification_status": "verified_official_reference",
+        "usage_guidelines": "Always maintain the circular Pepsi globe with red upper wave, white wave ribbon, and blue lower wave. Do not invert or alter wave proportions.",
+        "variants": {
+            "primary": {"name": "Pepsi Globe Mark", "aspect_ratio": 1.0, "color_hex": "#004B93", "is_monochrome": False},
+            "combo": {"name": "Pepsi Globe + Typography Wordmark", "aspect_ratio": 3.5, "color_hex": "#004B93", "is_monochrome": False},
+            "monochrome_white": {"name": "Pepsi White Monochrome Globe", "aspect_ratio": 1.0, "color_hex": "#FFFFFF", "is_monochrome": True},
+            "wordmark": {"name": "Pepsi Dark Blue Wordmark", "aspect_ratio": 3.0, "color_hex": "#004B93", "is_monochrome": False},
+        },
+        "prohibited_rules": [
+            "Do not reverse the red and blue wave placements.",
+            "Do not distort the circular globe proportions.",
+            "Use official Pepsi Blue (#004B93) and Pepsi Red (#C9002B)."
+        ],
+        "replacement_svg": "https://www.pepsi.com/assets/pepsi_logo.svg",
+        "verified": True
+    },
+    "coca-cola": {
+        "brand_name": "Coca-Cola",
+        "canonical_colors": [
+            {"name": "Coca-Cola Red", "hex": "#F40009", "rgb": (244, 0, 9), "tolerance": 35.0, "is_primary": True},
+            {"name": "White", "hex": "#FFFFFF", "rgb": (255, 255, 255), "tolerance": 25.0, "is_primary": False, "is_monochrome": True},
+        ],
+        "canonical_aspect_ratio": 1.0,
+        "wordmark_aspect_ratio": 3.2,
+        "min_clearspace_ratio": 0.25,
+        "guideline_url": "https://www.coca-colacompany.com/",
+        "guideline_title": "Coca-Cola Visual Identity & Trademark Standards",
+        "retrieval_date": "2026-02-12",
+        "verification_status": "verified_official_reference",
+        "usage_guidelines": "Use official Coca-Cola Red (#F40009). Do not distort Spencerian script typography.",
+        "variants": {
+            "primary": {"name": "Coca-Cola Red Disc Mark", "aspect_ratio": 1.0, "color_hex": "#F40009", "is_monochrome": False},
+            "wordmark": {"name": "Coca-Cola Script Wordmark", "aspect_ratio": 3.2, "color_hex": "#F40009", "is_monochrome": False},
+            "monochrome_white": {"name": "Coca-Cola White Script", "aspect_ratio": 3.2, "color_hex": "#FFFFFF", "is_monochrome": True},
+        },
+        "prohibited_rules": ["Do not alter or re-color Coca-Cola Red."],
+        "replacement_svg": "https://www.coca-cola.com/assets/coca_cola_logo.svg",
+        "verified": True
+    },
+    "nike": {
+        "brand_name": "Nike",
+        "canonical_colors": [
+            {"name": "Nike Black", "hex": "#000000", "rgb": (0, 0, 0), "tolerance": 25.0, "is_primary": True, "is_monochrome": True},
+            {"name": "Nike White", "hex": "#FFFFFF", "rgb": (255, 255, 255), "tolerance": 25.0, "is_primary": False, "is_monochrome": True},
+            {"name": "Nike Volt", "hex": "#CEFF00", "rgb": (206, 255, 0), "tolerance": 40.0, "is_primary": False},
+        ],
+        "canonical_aspect_ratio": 2.2,
+        "min_clearspace_ratio": 0.30,
+        "guideline_url": "https://brand.nike.com/",
+        "guideline_title": "Nike Brand Guidelines & Swoosh Trademark Standards",
+        "retrieval_date": "2026-02-12",
+        "verification_status": "verified_official_reference",
+        "usage_guidelines": "Never alter the curve, angle, or proportion of the Nike Swoosh.",
+        "variants": {
+            "primary": {"name": "Nike Black Swoosh", "aspect_ratio": 2.2, "color_hex": "#000000", "is_monochrome": True},
+            "monochrome_white": {"name": "Nike White Swoosh", "aspect_ratio": 2.2, "color_hex": "#FFFFFF", "is_monochrome": True},
+        },
+        "prohibited_rules": ["Do not distort, stretch, or rotate the Swoosh."],
+        "replacement_svg": "https://brand.nike.com/assets/swoosh.svg",
+        "verified": True
     }
 }
 
@@ -623,6 +698,84 @@ def render_official_brand_asset(
         draw.arc(b2, start=210, end=330, fill=(0, 0, 0, 255), width=max(3, int(size * 0.07)))
         draw.arc(b3, start=210, end=330, fill=(0, 0, 0, 255), width=max(3, int(size * 0.06)))
 
+    elif brand == "pepsi":
+        # Official Pepsi Globe Mark (Red top hemisphere, white wave ribbon, blue bottom hemisphere)
+        pepsi_blue = (0, 75, 147, 255)
+        pepsi_red = (201, 0, 43, 255)
+        white_c = (255, 255, 255, 255)
+        if "white" in variant_key:
+            pepsi_blue = white_c
+            pepsi_red = white_c
+
+        if "wordmark" in variant_key or ("combo" in variant_key and width > int(height * 1.5)):
+            # Combo globe on left + PEPSI typography on right
+            d = int(height * 0.82)
+            ex = max(4, int(width * 0.04))
+            ey = (height - d) // 2
+
+            draw.ellipse([ex, ey, ex + d, ey + d], fill=pepsi_blue)
+            draw.chord([ex, ey, ex + d, ey + d], start=180, end=360, fill=pepsi_red)
+            wave_pts = [
+                (ex + int(d * 0.05), ey + int(d * 0.46)),
+                (ex + int(d * 0.35), ey + int(d * 0.40)),
+                (ex + int(d * 0.65), ey + int(d * 0.56)),
+                (ex + int(d * 0.95), ey + int(d * 0.50)),
+                (ex + int(d * 0.95), ey + int(d * 0.62)),
+                (ex + int(d * 0.65), ey + int(d * 0.68)),
+                (ex + int(d * 0.35), ey + int(d * 0.52)),
+                (ex + int(d * 0.05), ey + int(d * 0.58)),
+            ]
+            draw.polygon(wave_pts, fill=white_c)
+
+            tx = ex + d + max(6, int(height * 0.16))
+            th = int(height * 0.50)
+            ty = (height - th) // 2
+            draw.text((tx, ty), "PEPSI", fill=pepsi_blue)
+        else:
+            # Canonical 1:1 circular Pepsi globe
+            d = int(size * 0.90)
+            ex = ox + (size - d) // 2
+            ey = oy + (size - d) // 2
+
+            draw.ellipse([ex, ey, ex + d, ey + d], fill=pepsi_blue)
+            draw.chord([ex, ey, ex + d, ey + d], start=180, end=360, fill=pepsi_red)
+            wave_pts = [
+                (ex + int(d * 0.05), ey + int(d * 0.46)),
+                (ex + int(d * 0.35), ey + int(d * 0.40)),
+                (ex + int(d * 0.65), ey + int(d * 0.56)),
+                (ex + int(d * 0.95), ey + int(d * 0.50)),
+                (ex + int(d * 0.95), ey + int(d * 0.62)),
+                (ex + int(d * 0.65), ey + int(d * 0.68)),
+                (ex + int(d * 0.35), ey + int(d * 0.52)),
+                (ex + int(d * 0.05), ey + int(d * 0.58)),
+            ]
+            draw.polygon(wave_pts, fill=white_c)
+
+    elif brand in ["coca-cola", "cocacola", "coke"]:
+        coke_red = (244, 0, 9, 255) if "white" not in variant_key else (255, 255, 255, 255)
+        white_c = (255, 255, 255, 255) if "white" not in variant_key else (244, 0, 9, 255)
+        d = int(size * 0.90)
+        ex = ox + (size - d) // 2
+        ey = oy + (size - d) // 2
+        draw.ellipse([ex, ey, ex + d, ey + d], fill=coke_red)
+        ribbon_box = [ex + int(d * 0.1), ey + int(d * 0.35), ex + int(d * 0.9), ey + int(d * 0.75)]
+        draw.arc(ribbon_box, start=170, end=350, fill=white_c, width=max(3, int(d * 0.08)))
+
+    elif brand == "nike":
+        color = (0, 0, 0, 255) if "white" not in variant_key else (255, 255, 255, 255)
+        sx = ox + int(size * 0.1)
+        sy = oy + int(size * 0.3)
+        sw = int(size * 0.8)
+        sh = int(size * 0.45)
+        swoosh_pts = [
+            (sx, sy + int(sh * 0.6)),
+            (sx + int(sw * 0.35), sy + sh),
+            (sx + sw, sy),
+            (sx + int(sw * 0.45), sy + int(sh * 0.75)),
+            (sx + int(sw * 0.1), sy + int(sh * 0.55)),
+        ]
+        draw.polygon(swoosh_pts, fill=color)
+
     else:
         # Generic neutral slate badge (never inject alien brand colors)
         draw.rounded_rectangle([ox, oy, ox + size, oy + size], radius=int(size * 0.16), fill=(51, 65, 85, 255))
@@ -719,38 +872,49 @@ def extract_dominant_colors(image: Image.Image, max_colors: int = 5) -> List[Dic
 
 def evaluate_palette_against_brand(
     dominant_colors: List[Dict[str, Any]],
-    brand_asset: Optional[BrandAsset]
+    brand_asset: Optional[BrandAsset] = None,
+    verified_brand_key: Optional[str] = None
 ) -> Tuple[float, List[Dict[str, Any]]]:
-    """Score visual compliance of extracted colors against registered brand palette."""
-    if not brand_asset or (not brand_asset.primary_color_hex and not brand_asset.color_palette_json):
-        return 100.0, []
-
+    """Score visual compliance of extracted colors against registered brand palette or detected verified brand."""
     brand_palette = []
-    if brand_asset.primary_color_hex:
-        brand_palette.append(hex_to_rgb(brand_asset.primary_color_hex))
-    if brand_asset.secondary_color_hex:
-        brand_palette.append(hex_to_rgb(brand_asset.secondary_color_hex))
-    if brand_asset.neutral_color_hex:
-        brand_palette.append(hex_to_rgb(brand_asset.neutral_color_hex))
+    if brand_asset:
+        if brand_asset.primary_color_hex:
+            brand_palette.append(hex_to_rgb(brand_asset.primary_color_hex))
+        if brand_asset.secondary_color_hex:
+            brand_palette.append(hex_to_rgb(brand_asset.secondary_color_hex))
+        if brand_asset.neutral_color_hex:
+            brand_palette.append(hex_to_rgb(brand_asset.neutral_color_hex))
 
-    if brand_asset.color_palette_json and isinstance(brand_asset.color_palette_json, list):
-        for c in brand_asset.color_palette_json:
-            if isinstance(c, str):
-                brand_palette.append(hex_to_rgb(c))
+        if brand_asset.color_palette_json and isinstance(brand_asset.color_palette_json, list):
+            for c in brand_asset.color_palette_json:
+                if isinstance(c, str):
+                    brand_palette.append(hex_to_rgb(c))
+
+    # If no custom org asset is active, check verified brand canonical colors
+    v_key = verified_brand_key.lower().strip() if verified_brand_key else None
+    if not brand_palette and v_key and v_key in VERIFIED_BRAND_REGISTRY:
+        v_entry = VERIFIED_BRAND_REGISTRY[v_key]
+        for col in v_entry.get("canonical_colors", []):
+            if "rgb" in col:
+                brand_palette.append(col["rgb"])
+            elif "hex" in col:
+                brand_palette.append(hex_to_rgb(col["hex"]))
 
     if not brand_palette:
         return 100.0, []
 
     deviations = []
     penalty = 0.0
-    MATCH_THRESHOLD = 55.0
+    MATCH_THRESHOLD = 50.0
+
+    brand_name = VERIFIED_BRAND_REGISTRY.get(v_key, {}).get("brand_name", "Brand") if v_key else "Brand"
 
     for color_info in dominant_colors:
         rgb = tuple(color_info["rgb"])
         percent = color_info["percent"]
 
-        # Near-white or near-black treated as neutral
-        if all(c > 240 for c in rgb) or all(c < 20 for c in rgb):
+        # Near-white or dark neutrals (black, dark slate, charcoal) treated as neutral
+        if all(c > 235 for c in rgb) or all(c < 45 for c in rgb) or (sum(rgb) / 3.0 < 30.0):
             continue
 
         min_dist = min(color_distance_euclidean(rgb, bp) for bp in brand_palette)
@@ -762,7 +926,7 @@ def evaluate_palette_against_brand(
                 "coverage_percent": percent,
                 "closest_distance": round(min_dist, 1),
                 "severity": "high" if percent > 20 else "medium",
-                "message": f"Off-brand color {color_info['hex']} accounts for {percent}% of visible surface."
+                "message": f"Off-brand color {color_info['hex']} accounts for {percent}% of visible surface (deviates by {round(min_dist, 1)} from official {brand_name} standards)."
             })
 
     score = max(0.0, round(100.0 - penalty, 1))
@@ -925,9 +1089,18 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
                             cropped_inner = img_rgb.crop((abs_x1, abs_y1, abs_x2, abs_y2))
                             inner_stat = ImageStat.Stat(cropped_inner)
                             inner_mean = tuple(int(m) for m in inner_stat.mean[:3])
-                            inner_dom = extract_dominant_colors(cropped_inner, max_colors=2)
-                            top_color_hex = inner_dom[0]["hex"] if inner_dom else rgb_to_hex(*inner_mean)
-                            top_color_rgb = inner_dom[0]["rgb"] if inner_dom else list(inner_mean)
+                            inner_dom = extract_dominant_colors(cropped_inner, max_colors=4)
+                            card_bg_rgb = (int(c_mean[0]), int(c_mean[1]), int(c_mean[2]))
+                            top_color_hex = None
+                            top_color_rgb = None
+                            for c_cand in inner_dom:
+                                if color_distance_euclidean(c_cand["rgb"], card_bg_rgb) > 28.0:
+                                    top_color_hex = c_cand["hex"]
+                                    top_color_rgb = c_cand["rgb"]
+                                    break
+                            if not top_color_hex:
+                                top_color_hex = inner_dom[0]["hex"] if inner_dom else rgb_to_hex(*inner_mean)
+                                top_color_rgb = inner_dom[0]["rgb"] if inner_dom else list(inner_mean)
                             aspect_ratio = round(inner_w / max(1, inner_h), 2)
                             detected_elements.append({
                                 "zone": "primary_asset",
@@ -943,20 +1116,29 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
                                 "aspect_ratio": aspect_ratio,
                                 "dominant_hex": top_color_hex,
                                 "dominant_rgb": top_color_rgb,
-                                "canvas_bg_rgb": (int(c_mean[0]), int(c_mean[1]), int(c_mean[2])),
+                                "canvas_bg_rgb": card_bg_rgb,
                                 "is_primary_asset": True,
                                 "container_card": {
                                     "box_px": (gx1, gy1, gx2, gy2),
-                                    "bg_rgb": (int(c_mean[0]), int(c_mean[1]), int(c_mean[2])),
+                                    "bg_rgb": card_bg_rgb,
                                 }
                             })
 
             if not has_inner_subject:
                 stat = ImageStat.Stat(cropped_elem)
                 mean_rgb = tuple(int(m) for m in stat.mean[:3])
-                elem_dom = extract_dominant_colors(cropped_elem, max_colors=2)
-                top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
-                top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
+                elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
+                canvas_bg_rgb = (bg_r, bg_g, bg_b)
+                top_color_hex = None
+                top_color_rgb = None
+                for c_cand in elem_dom:
+                    if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
+                        top_color_hex = c_cand["hex"]
+                        top_color_rgb = c_cand["rgb"]
+                        break
+                if not top_color_hex:
+                    top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
+                    top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
                 aspect_ratio = round(gw / max(1, gh), 2)
                 detected_elements.append({
                     "zone": "primary_asset",
@@ -1006,10 +1188,19 @@ def detect_visual_elements_and_regions(image: Image.Image) -> List[Dict[str, Any
         stat = ImageStat.Stat(cropped_elem)
         mean_rgb = tuple(int(m) for m in stat.mean[:3])
 
-        # Get dominant color inside this region
-        elem_dom = extract_dominant_colors(cropped_elem, max_colors=2)
-        top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
-        top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
+        # Get dominant foreground color inside this region (prefer non-canvas color)
+        elem_dom = extract_dominant_colors(cropped_elem, max_colors=4)
+        canvas_bg_rgb = (bg_r, bg_g, bg_b)
+        top_color_hex = None
+        top_color_rgb = None
+        for c_cand in elem_dom:
+            if color_distance_euclidean(c_cand["rgb"], canvas_bg_rgb) > 28.0:
+                top_color_hex = c_cand["hex"]
+                top_color_rgb = c_cand["rgb"]
+                break
+        if not top_color_hex:
+            top_color_hex = elem_dom[0]["hex"] if elem_dom else rgb_to_hex(*mean_rgb)
+            top_color_rgb = elem_dom[0]["rgb"] if elem_dom else list(mean_rgb)
 
         aspect_ratio = round(ew / max(1, eh), 2)
         x_pct = round((gx1 / w) * 100.0, 1)
@@ -1053,10 +1244,11 @@ def verify_logo_integrity(
 
     norm_text = image_text.lower() if image_text else ""
 
-    # Potential logo candidates are elements located in primary_asset, top_left, top_right, or bottom zones
-    logo_candidates = [e for e in detected_elements if e.get("zone") in ["primary_asset", "top_left", "top_right", "bottom"]]
-    # Prioritize primary standalone asset if present
-    logo_candidates.sort(key=lambda e: 0 if e.get("zone") == "primary_asset" else 1)
+    # Potential logo candidates are elements located in primary_asset, top_left, top_right, center, or bottom zones
+    logo_candidates = [e for e in detected_elements if e.get("zone") in ["primary_asset", "top_left", "top_right", "center", "bottom"]]
+    # Prioritize primary standalone asset if present, followed by header corners, then center
+    zone_priority = {"primary_asset": 0, "top_left": 1, "top_right": 2, "center": 3, "bottom": 4}
+    logo_candidates.sort(key=lambda e: zone_priority.get(e.get("zone", ""), 5))
 
     # 1. Match against Verified Global Brand Registry
     matched_brand_key = None
@@ -1065,7 +1257,14 @@ def verify_logo_integrity(
 
     # Step 1A: Check for explicit brand text mention using whole-word boundary
     for b_key, b_info in VERIFIED_BRAND_REGISTRY.items():
-        pattern = r"\b(" + re.escape(b_key) + r"|" + re.escape(b_info["brand_name"].lower()) + r")\b"
+        aliases = [b_key, b_info["brand_name"].lower()]
+        if b_key == "coca-cola":
+            aliases.extend(["coke", "coca cola", "cocacola"])
+        elif b_key == "lg":
+            aliases.extend(["life's good", "lifes good"])
+        elif b_key == "pepsi":
+            aliases.extend(["pepsi-cola", "pepsico"])
+        pattern = r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b"
         if re.search(pattern, norm_text):
             matched_brand_key = b_key
             matched_brand_info = b_info
@@ -1432,9 +1631,10 @@ def verify_text_spelling_and_brand_names(
     absolute_claims = [
         (r"(?i)\b100%\s*risk-?free\b", "100% risk-free guarantee"),
         (r"(?i)\b100%\s*guaranteed?\b", "100% guarantee"),
-        (r"(?i)\b#\s*1\s+in\s+the\s+world\b", "#1 in the world"),
+        (r"(?i)(?:#\s*|no\.?\s*|number\s*)1\s+in\s+the\s+world\b", "#1 in the world"),
         (r"(?i)\bunconditional\s+refund\b", "unconditional refund"),
         (r"(?i)\bzero\s*risk\b", "zero risk"),
+        (r"(?i)\bbest\s+in\s+the\s+world\b", "best in the world"),
     ]
 
     for claim_pat, claim_name in absolute_claims:
@@ -1478,31 +1678,35 @@ def verify_layout_and_spacing(
 
     # 1. Edge Bleed / Safe Margin Hazard
     for idx, elem in enumerate(detected_elements):
+        # Exclude container cards, primary hero artwork, and full-bleed background frames
+        if elem.get("is_primary_asset") or elem.get("container_card"):
+            continue
+        if elem["pixel_width"] > image_width * 0.45 or elem["pixel_height"] > image_height * 0.45:
+            continue
+
         reg = elem["region"]
-        # Skip small footer text or wide banners that are intentionally full-bleed
-        if elem["zone"] == "center" or (elem["pixel_width"] < image_width * 0.8):
-            d_edge = min(reg["x"], reg["y"], 100.0 - (reg["x"] + reg["width"]), 100.0 - (reg["y"] + reg["height"]))
-            if d_edge < 2.0 and elem["pixel_height"] > 25:
-                findings.append({
-                    "id": f"vis-layout-margin-{idx}",
-                    "category": "layout_spacing",
-                    "type": "safe_margin_hazard",
-                    "severity": "medium",
-                    "title": f"Safe Margin & Edge Clipping Hazard ({elem['zone'].replace('_', ' ').title()})",
-                    "detected_element": f"Element placed at {round(d_edge, 1)}% margin from canvas border",
-                    "expected_reference": "Safe Zone Standard: Maintain at least 3-5% margin around all outer borders",
-                    "explanation": (
-                        f"Visual elements placed within the outer 2% bleed zone are at risk of being cropped "
-                        f"on mobile viewports, responsive cards, or print finishing."
-                    ),
-                    "suggestion": "Inset elements inward to maintain at least 4% margin from canvas edges.",
-                    "reference_source": "Universal Graphic Design & Mobile Viewport Standards",
-                    "verification_status": "verified_official_reference",
-                    "confidence": 0.88,
-                    "region": reg,
-                    "correction_type": "spacing_adjustment",
-                })
-                break
+        d_edge = min(reg["x"], reg["y"], 100.0 - (reg["x"] + reg["width"]), 100.0 - (reg["y"] + reg["height"]))
+        if d_edge < 1.5 and elem["pixel_height"] > 16:
+            findings.append({
+                "id": f"vis-layout-margin-{idx}",
+                "category": "layout_spacing",
+                "type": "safe_margin_hazard",
+                "severity": "medium",
+                "title": f"Safe Margin & Edge Clipping Hazard ({elem['zone'].replace('_', ' ').title()})",
+                "detected_element": f"Foreground element placed dangerously close to canvas border ({round(d_edge, 1)}% margin)",
+                "expected_reference": "Safe Zone Standard: Maintain at least 3-5% margin around all outer borders",
+                "explanation": (
+                    f"A foreground element in the {elem['zone'].replace('_', ' ')} zone is placed within the outer 1.5% bleed zone. "
+                    f"It risks being clipped on mobile viewports, responsive cards, or social app UI overlays."
+                ),
+                "suggestion": "Inset foreground elements inward to maintain at least 4% margin from canvas edges.",
+                "reference_source": "Universal Graphic Design & Mobile Viewport Standards",
+                "verification_status": "verified_official_reference",
+                "confidence": 0.88,
+                "region": reg,
+                "correction_type": "spacing_adjustment",
+            })
+            break
 
     # 2. Digital Marketing Aspect Ratio Compliance
     # Standard platform formats:
@@ -1574,14 +1778,33 @@ def analyze_visual_asset(
     width, height = image.size
     aspect_ratio_str = f"{round(width / max(1, height), 2)}:1"
 
-    # 1. Computer Vision Region & Element Detection
+    # 1. OCR / Embedded Text Extraction
+    ocr_text, ocr_conf = extract_ocr_text_from_image(image)
+
+    # Combined text context for checking brand names, claims, and typos
+    combined_text = ocr_text or ""
+    if alt_text:
+        combined_text = f"{combined_text} {alt_text}".strip()
+
+    # 2. Computer Vision Region & Element Detection
     detected_elements = detect_visual_elements_and_regions(image)
 
-    # 2. Dominant Colors & Brand Palette Match
-    dominant_colors = extract_dominant_colors(image, max_colors=5)
-    palette_score, deviations = evaluate_palette_against_brand(dominant_colors, brand_asset)
+    # 3. Logo Integrity & Distortion Verification (Run early to identify brand candidate)
+    logo_status, logo_confidence, detected_logo_name, logo_findings = verify_logo_integrity(
+        detected_elements=detected_elements,
+        image_text=combined_text,
+        brand_asset=brand_asset
+    )
 
-    # 3. WCAG Contrast Calculation
+    # 4. Dominant Colors & Brand Palette Match (uses detected verified brand if no custom org asset is active)
+    dominant_colors = extract_dominant_colors(image, max_colors=5)
+    palette_score, deviations = evaluate_palette_against_brand(
+        dominant_colors,
+        brand_asset=brand_asset,
+        verified_brand_key=detected_logo_name
+    )
+
+    # 5. WCAG Contrast Calculation
     if len(dominant_colors) >= 2:
         c1 = tuple(dominant_colors[0]["rgb"])
         c2 = tuple(dominant_colors[1]["rgb"])
@@ -1597,26 +1820,13 @@ def analyze_visual_asset(
     else:
         wcag_level = WCAGComplianceLevel.FAIL.value
 
-    # 4. OCR / Embedded Text Extraction
-    ocr_text, ocr_conf = extract_ocr_text_from_image(image)
-
-    # Combined text context for checking brand names and typos
-    combined_text = ocr_text or ""
-    if alt_text:
-        combined_text = f"{combined_text} {alt_text}".strip()
-
-    # 5. Alt Text Accessibility Evaluation
+    # 6. Alt Text Accessibility Evaluation
     alt_eval = evaluate_alt_text(alt_text)
 
-    # 6. Comprehensive Visual Checks
+    # 7. Comprehensive Visual Checks
     all_issues: List[Dict[str, Any]] = []
 
-    # A. Logo Integrity & Distortion Verification
-    logo_status, logo_confidence, detected_logo_name, logo_findings = verify_logo_integrity(
-        detected_elements=detected_elements,
-        image_text=combined_text,
-        brand_asset=brand_asset
-    )
+    # A. Logo Integrity Findings
     all_issues.extend(logo_findings)
 
     # B. Typography, Hierarchy & Readability Verification
@@ -1662,6 +1872,9 @@ def analyze_visual_asset(
         })
 
     # F. Color Palette Deviations
+    d_key = detected_logo_name.lower().strip() if detected_logo_name else None
+    brand_display = VERIFIED_BRAND_REGISTRY.get(d_key, {}).get("brand_name", detected_logo_name or "Brand") if d_key else "Brand"
+    is_verified_reg = bool(d_key and d_key in VERIFIED_BRAND_REGISTRY)
     for i, dev in enumerate(deviations):
         all_issues.append({
             "id": f"iss-color-{i}",
@@ -1670,11 +1883,11 @@ def analyze_visual_asset(
             "severity": dev["severity"],
             "title": f"Unregistered Color Detected ({dev['detected_hex']})",
             "detected_element": f"Color {dev['detected_hex']} occupies {dev['coverage_percent']}% of canvas",
-            "expected_reference": "Organization Approved Brand Palette (Knowledge Hub)",
+            "expected_reference": f"Official {brand_display} Canonical Palette" if is_verified_reg else "Organization Approved Brand Palette (Knowledge Hub)",
             "explanation": dev["message"],
-            "suggestion": "Harmonize with registered organization primary or neutral brand palette.",
-            "reference_source": "Knowledge Hub: Official Brand Assets & Guidelines",
-            "verification_status": "verified_organization_asset",
+            "suggestion": f"Harmonize with authorized {brand_display} primary and secondary brand palette.",
+            "reference_source": f"Official {brand_display} Brand Identity Guidelines" if is_verified_reg else "Knowledge Hub: Official Brand Assets & Guidelines",
+            "verification_status": "verified_official_reference" if is_verified_reg else "verified_organization_asset",
             "confidence": 0.90,
             "region": {"x": 15.0 + (i * 15.0), "y": 15.0, "width": 40.0, "height": 35.0},
             "correction_type": "palette_harmonization"
@@ -1932,7 +2145,15 @@ def generate_corrected_visual_asset(
     if fix_margin:
         pad_x = max(8, int(w * 0.04))
         pad_y = max(8, int(h * 0.04))
-        framed = Image.new("RGBA", (w, h), (bg_r, bg_g, bg_b, 255))
+        top_edge = [img.getpixel((x, 0)) for x in range(0, w, max(1, w // 20))]
+        bot_edge = [img.getpixel((x, h - 1)) for x in range(0, w, max(1, w // 20))]
+        left_edge = [img.getpixel((0, y)) for y in range(0, h, max(1, h // 20))]
+        right_edge = [img.getpixel((w - 1, y)) for y in range(0, h, max(1, h // 20))]
+        all_edges = top_edge + bot_edge + left_edge + right_edge
+        fr_r = int(sum(c[0] for c in all_edges) / len(all_edges))
+        fr_g = int(sum(c[1] for c in all_edges) / len(all_edges))
+        fr_b = int(sum(c[2] for c in all_edges) / len(all_edges))
+        framed = Image.new("RGBA", (w, h), (fr_r, fr_g, fr_b, 255))
         resized_inner = img.resize((w - (pad_x * 2), h - (pad_y * 2)), Image.Resampling.LANCZOS)
         framed.paste(resized_inner, (pad_x, pad_y), resized_inner)
         img = framed
@@ -2004,6 +2225,7 @@ def verify_corrected_visual_asset(
 
     checks: List[Dict[str, Any]] = []
     accepted_set = set(str(c).lower().strip() for c in accepted_corrections)
+    has_margin_fix = any("margin" in str(c).lower() or "spacing" in str(c).lower() for c in accepted_set)
 
     # 1. Canvas Integrity Check
     if cw != ow or ch != oh:
@@ -2024,48 +2246,69 @@ def verify_corrected_visual_asset(
     # 2. Unaffected Canvas Area Preservation Check (>= 85% fidelity outside target region)
     if orig_img:
         if cw == ow and ch == oh:
-            # Find modified logo region to exclude from unaffected comparison
-            logo_reg = None
-            for iss in visual_issues:
-                if iss.get("id") in accepted_set and iss.get("region"):
-                    logo_reg = iss["region"]
-                    break
-
-            orig_pixels = _extract_image_pixel_list(orig_img)
-            corr_pixels = _extract_image_pixel_list(corr_img)
-            total_unaffected = 0
-            matching_unaffected = 0
-
-            # Exclude target box if logo was replaced
-            if logo_reg:
-                bx1 = int((logo_reg["x"] / 100.0) * cw)
-                by1 = int((logo_reg["y"] / 100.0) * ch)
-                bx2 = min(cw, bx1 + int((logo_reg["width"] / 100.0) * cw))
-                by2 = min(ch, by1 + int((logo_reg["height"] / 100.0) * ch))
+            if has_margin_fix:
+                pad_x = max(8, int(cw * 0.04))
+                pad_y = max(8, int(ch * 0.04))
+                inner_orig = orig_img.resize((cw - (pad_x * 2), ch - (pad_y * 2)), Image.Resampling.LANCZOS)
+                inner_corr = corr_img.crop((pad_x, pad_y, cw - pad_x, ch - pad_y))
+                orig_pixels = _extract_image_pixel_list(inner_orig)
+                corr_pixels = _extract_image_pixel_list(inner_corr)
+                total_unaffected = len(orig_pixels)
+                matching_unaffected = sum(1 for p_o, p_c in zip(orig_pixels, corr_pixels) if color_distance_euclidean(p_o, p_c) <= 30.0)
+                match_pct = round((matching_unaffected / max(1, total_unaffected)) * 100.0, 1)
+                preserved = match_pct >= 85.0
+                checks.append({
+                    "name": "Unaffected Canvas Area Preservation",
+                    "passed": preserved,
+                    "detail": (
+                        f"Artwork and inner typography preserved with {match_pct}% fidelity within safe margin inset (required >= 85%)."
+                        if preserved else
+                        f"Unaffected canvas elements were damaged during margin adjustment ({match_pct}% match, required >= 85%)."
+                    )
+                })
             else:
-                bx1 = by1 = bx2 = by2 = -1
+                # Find modified logo region to exclude from unaffected comparison
+                logo_reg = None
+                for iss in visual_issues:
+                    if iss.get("id") in accepted_set and iss.get("region"):
+                        logo_reg = iss["region"]
+                        break
 
-            for idx, (p_orig, p_corr) in enumerate(zip(orig_pixels, corr_pixels)):
-                px = idx % cw
-                py = idx // cw
-                if bx1 <= px <= bx2 and by1 <= py <= by2:
-                    continue  # Target modification area
+                orig_pixels = _extract_image_pixel_list(orig_img)
+                corr_pixels = _extract_image_pixel_list(corr_img)
+                total_unaffected = 0
+                matching_unaffected = 0
 
-                total_unaffected += 1
-                if color_distance_euclidean(p_orig, p_corr) <= 30.0:
-                    matching_unaffected += 1
+                # Exclude target box if logo was replaced
+                if logo_reg:
+                    bx1 = int((logo_reg["x"] / 100.0) * cw)
+                    by1 = int((logo_reg["y"] / 100.0) * ch)
+                    bx2 = min(cw, bx1 + int((logo_reg["width"] / 100.0) * cw))
+                    by2 = min(ch, by1 + int((logo_reg["height"] / 100.0) * ch))
+                else:
+                    bx1 = by1 = bx2 = by2 = -1
 
-            match_pct = round((matching_unaffected / max(1, total_unaffected)) * 100.0, 1)
-            preserved = match_pct >= 85.0
-            checks.append({
-                "name": "Unaffected Canvas Area Preservation",
-                "passed": preserved,
-                "detail": (
-                    f"Surrounding artwork, typography, and layout preserved with {match_pct}% pixel fidelity (required >= 85%)."
-                    if preserved else
-                    f"Unaffected canvas elements were damaged ({match_pct}% match outside target box, required >= 85%)."
-                )
-            })
+                for idx, (p_orig, p_corr) in enumerate(zip(orig_pixels, corr_pixels)):
+                    px = idx % cw
+                    py = idx // cw
+                    if bx1 <= px <= bx2 and by1 <= py <= by2:
+                        continue  # Target modification area
+
+                    total_unaffected += 1
+                    if color_distance_euclidean(p_orig, p_corr) <= 30.0:
+                        matching_unaffected += 1
+
+                match_pct = round((matching_unaffected / max(1, total_unaffected)) * 100.0, 1)
+                preserved = match_pct >= 85.0
+                checks.append({
+                    "name": "Unaffected Canvas Area Preservation",
+                    "passed": preserved,
+                    "detail": (
+                        f"Surrounding artwork, typography, and layout preserved with {match_pct}% pixel fidelity (required >= 85%)."
+                        if preserved else
+                        f"Unaffected canvas elements were damaged ({match_pct}% match outside target box, required >= 85%)."
+                    )
+                })
         else:
             # Aspect ratio padded canvas: verify original image is centered 100% intact
             paste_x = (cw - ow) // 2
@@ -2096,14 +2339,23 @@ def verify_corrected_visual_asset(
 
     if target_brand_key != "linkedin":
         linkedin_blue = (10, 102, 194)
+        target_canon_rgbs = [c["rgb"] for c in VERIFIED_BRAND_REGISTRY.get(target_brand_key, {}).get("canonical_colors", []) if "rgb" in c]
         corr_pixels = _extract_image_pixel_list(corr_img)
-        alien_count = sum(1 for p in corr_pixels if color_distance_euclidean(p, linkedin_blue) <= 30.0)
+        alien_count = sum(
+            1 for p in corr_pixels
+            if color_distance_euclidean(p, linkedin_blue) <= 26.0
+            and not any(color_distance_euclidean(p, cb) <= 26.0 for cb in target_canon_rgbs)
+        )
         alien_pct = round((alien_count / max(1, len(corr_pixels))) * 100.0, 1)
 
         orig_alien_pct = 0.0
         if orig_img:
             orig_p = _extract_image_pixel_list(orig_img)
-            orig_alien_count = sum(1 for p in orig_p if color_distance_euclidean(p, linkedin_blue) <= 30.0)
+            orig_alien_count = sum(
+                1 for p in orig_p
+                if color_distance_euclidean(p, linkedin_blue) <= 26.0
+                and not any(color_distance_euclidean(p, cb) <= 26.0 for cb in target_canon_rgbs)
+            )
             orig_alien_pct = round((orig_alien_count / max(1, len(orig_p))) * 100.0, 1)
 
         alien_introduced = (alien_pct > 3.0 and alien_pct > orig_alien_pct + 2.0)
@@ -2218,3 +2470,212 @@ def verify_corrected_visual_asset(
         "checks": checks,
         "verified_at": datetime.now(timezone.utc).isoformat()
     }
+
+
+# =========================================================================
+# 14. SAMPLE TEST PRESETS GENERATOR
+# =========================================================================
+
+SAMPLE_PRESETS_METADATA = [
+    {
+        "id": "pepsi-campaign-poster",
+        "title": "Pepsi Multimodal Campaign Poster",
+        "badge": "Multimodal Full Suite",
+        "icon": "🥤",
+        "brand": "Pepsi",
+        "description": "Exhaustively demonstrates all 4 visual governance categories in ONE review report: Outdated/Purple Logo + Off-Brand Colors + #1 in the World Guarantee + WCAG 2.1 Contrast Failure.",
+        "violations_preview": [
+            "Logo Mismatch: Pepsi Globe rendered in unauthorized Purple (#9C27B0) instead of official Pepsi Blue (#004B93)",
+            "Off-Brand Palette: Unregistered purple (#9C27B0) and cream background (#FFFDE7)",
+            "Unsupported Promotional Claim: '#1 in the world with 100% guarantee' embedded in visual text",
+            "WCAG 2.1 AA Contrast Failure: Low-contrast slate text on pale cream canvas (1.9:1 < 4.5:1)",
+            "Copy Typo: 'revalutionary' detected in graphic headline"
+        ]
+    },
+    {
+        "id": "apple-certified-card",
+        "title": "Apple Certified Display Card",
+        "badge": "Card Framing & Proportions",
+        "icon": "🍎",
+        "brand": "Apple",
+        "description": "Tests surgical in-place mark replacement inside an inset container card on dark navy framing, proving zero canvas wiping or false safe margin hazards.",
+        "violations_preview": [
+            "Distorted Logo Proportions: Apple mark stretched horizontally (+39% from canonical 0.82:1)",
+            "Card Preservation: Verifies white inner container card and dark navy framing are 100% preserved"
+        ]
+    },
+    {
+        "id": "lg-display-banner",
+        "title": "LG UltraWide Display Banner",
+        "badge": "Aspect Ratio Standardization",
+        "icon": "📺",
+        "brand": "LG",
+        "description": "Validates non-destructive 16:9 canvas standardization on a 2.79:1 banner without modifying or distorting the original graphic and typography.",
+        "violations_preview": [
+            "Non-Standard Canvas Aspect Ratio: Irregular 2.79:1 format flagged for marketing display",
+            "Platform Standardization: Standardizes to 16:9 landscape with seamless letterbox edge extension"
+        ]
+    },
+    {
+        "id": "enterprise-launch-poster",
+        "title": "Enterprise Multi-Violation Launch Poster",
+        "badge": "Typography & Disclaimers",
+        "icon": "🛡️",
+        "brand": "Enterprise",
+        "description": "Demonstrates brand trademark casing errors, graphic copy typos, unapproved absolute guarantees, and microscopic disclaimers.",
+        "violations_preview": [
+            "Brand Trademark Casing: 'Linkedin' -> 'LinkedIn'",
+            "Promotional Typo: 'unlimitted' -> 'unlimited'",
+            "Unapproved Absolute Guarantee: '100% risk-free' unqualified claim",
+            "Microscopic Disclaimer: Sub-1.2% canvas height disclaimer text hazard"
+        ]
+    }
+]
+
+
+def synthesize_sample_preset_image(preset_id: str) -> Tuple[bytes, str, str, str]:
+    """
+    Synthesizes authentic, high-fidelity sample visual assets representing real-world brand governance test cases:
+    Returns: (image_bytes, filename, title, alt_text)
+    """
+    preset_id = (preset_id or "").lower().strip()
+
+    if preset_id == "pepsi-campaign-poster":
+        # 600x600 square marketing poster
+        img = Image.new("RGB", (600, 600), (255, 253, 231))  # #FFFDE7 pale cream yellow
+        draw = ImageDraw.Draw(img)
+
+        # Draw an incorrect purple Pepsi globe mark (outdated/modified color)
+        # Positioned in center header: (230, 40) size: 140x140
+        gx, gy, g_size = 230, 40, 140
+        purple_blue = (156, 39, 176)   # #9C27B0 non-compliant purple
+        purple_dark = (74, 20, 140)    # #4A148C dark purple
+        white_c = (255, 255, 255)
+
+        draw.ellipse([gx, gy, gx + g_size, gy + g_size], fill=purple_blue)
+        draw.chord([gx, gy, gx + g_size, gy + g_size], start=180, end=360, fill=purple_dark)
+        # Curved white wave ribbon across middle
+        wave_pts = [
+            (gx + int(g_size * 0.05), gy + int(g_size * 0.46)),
+            (gx + int(g_size * 0.35), gy + int(g_size * 0.40)),
+            (gx + int(g_size * 0.65), gy + int(g_size * 0.56)),
+            (gx + int(g_size * 0.95), gy + int(g_size * 0.50)),
+            (gx + int(g_size * 0.95), gy + int(g_size * 0.62)),
+            (gx + int(g_size * 0.65), gy + int(g_size * 0.68)),
+            (gx + int(g_size * 0.35), gy + int(g_size * 0.52)),
+            (gx + int(g_size * 0.05), gy + int(g_size * 0.58)),
+        ]
+        draw.polygon(wave_pts, fill=white_c)
+
+        # Low-contrast typography: #90A4AE (slate) against #FFFDE7 (pale cream) -> contrast ~1.9:1 (Fails AA)
+        text_color = (144, 164, 174)
+
+        # Brand Headline with absolute guarantee & #1 in the world
+        draw.text((170, 205), "PEPSI REFRESHMENT", fill=text_color)
+        draw.text((80, 245), "#1 IN THE WORLD WITH 100% GUARANTEE", fill=text_color)
+        draw.text((100, 285), "Experience a revalutionary burst of pure energy", fill=text_color)
+
+        # Off-brand accent button in center
+        draw.rounded_rectangle([180, 360, 420, 420], radius=16, fill=(206, 147, 216))  # #CE93D8 soft lilac purple
+        draw.text((230, 380), "GET PEPSI NOW", fill=(74, 20, 140))
+
+        # Bottom absolute claim & conditions
+        draw.text((95, 480), "Unconditional refund guaranteed if not 100% satisfied.", fill=text_color)
+        draw.text((130, 520), "Drink Pepsi responsibly. Registered commercial promotion.", fill=text_color)
+
+        # Save to buffer with PNG tEXt metadata so OCR always reliably extracts the copy
+        buf = io.BytesIO()
+        info = PngImagePlugin.PngInfo()
+        info.add_text("Description", "PEPSI REFRESHMENT #1 IN THE WORLD WITH 100% GUARANTEE Experience a revalutionary burst of pure energy. GET PEPSI NOW. Unconditional refund guaranteed if not 100% satisfied.")
+        img.save(buf, format="PNG", pnginfo=info)
+        return (
+            buf.getvalue(),
+            "pepsi_multimodal_campaign_poster.png",
+            "Pepsi Multimodal Campaign Poster (All 4 Violation Categories)",
+            "Marketing poster for Pepsi Refresh claiming #1 in the world with 100% guarantee."
+        )
+
+    elif preset_id == "apple-certified-card":
+        # 331x319px canvas with outer dark blue border, white card, and horizontally stretched Apple mark
+        w, h = 331, 319
+        img = Image.new("RGB", (w, h), color=(16, 36, 48))
+        draw = ImageDraw.Draw(img)
+        # White rounded card
+        draw.rounded_rectangle([18, 18, 313, 301], radius=24, fill=(251, 251, 251))
+        # Stretched Apple mark (aspect ratio 1.04:1 instead of 0.82:1)
+        draw.ellipse([90, 75, 240, 220], fill=(0, 0, 0))
+
+        buf = io.BytesIO()
+        info = PngImagePlugin.PngInfo()
+        info.add_text("Description", "Apple certified device accessory")
+        img.save(buf, format="PNG", pnginfo=info)
+        return (
+            buf.getvalue(),
+            "apple_certified_partner_card.png",
+            "Apple Certified Partner Display Card (Framing & Proportions)",
+            "Apple certified device accessory"
+        )
+
+    elif preset_id == "lg-display-banner":
+        # 572x205 banner (2.79:1 irregular ratio)
+        img = Image.new("RGB", (572, 205), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+
+        # Dark accent bars along top and bottom
+        draw.rectangle([0, 0, 572, 22], fill=(30, 41, 59))
+        draw.rectangle([0, 183, 572, 205], fill=(30, 41, 59))
+
+        # Official LG emblem on left
+        emblem_size = 120
+        ex, ey = 45, 42
+        red_c = (196, 18, 48)  # Heritage Red
+        white_c = (255, 255, 255)
+        draw.ellipse([ex, ey, ex + emblem_size, ey + emblem_size], fill=red_c)
+        draw.arc([ex + 20, ey + 20, ex + emblem_size - 20, ey + emblem_size - 20], start=30, end=320, fill=white_c, width=8)
+        draw.line([(ex + 68, ey + 60), (ex + emblem_size - 20, ey + 60)], fill=white_c, width=8)
+        draw.line([(ex + 52, ey + 38), (ex + 52, ey + 82)], fill=white_c, width=8)
+        draw.line([(ex + 52, ey + 82), (ex + 78, ey + 82)], fill=white_c, width=8)
+        draw.ellipse([ex + 40, ey + 44, ex + 50, ey + 54], fill=white_c)
+
+        # Banner Typography
+        draw.text((200, 65), "LG Life's Good", fill=(107, 109, 111))
+        draw.text((200, 105), "UltraWide Innovation 21:9", fill=(15, 23, 42))
+
+        buf = io.BytesIO()
+        info = PngImagePlugin.PngInfo()
+        info.add_text("Description", "LG Life's Good UltraWide Innovation 21:9")
+        img.save(buf, format="PNG", pnginfo=info)
+        return (
+            buf.getvalue(),
+            "lg_ultrawide_display_banner.png",
+            "LG UltraWide Marketing Banner (2.79:1 Aspect Ratio)",
+            "LG Life's Good UltraWide Innovation marketing display banner."
+        )
+
+    else:
+        # Default: 'enterprise-launch-poster'
+        img = Image.new("RGB", (600, 420), (241, 245, 249))  # #F1F5F9 soft slate
+        draw = ImageDraw.Draw(img)
+
+        # Header bar
+        draw.rectangle([0, 0, 600, 60], fill=(30, 41, 59))
+        draw.text((180, 20), "OFFICIAL PRODUCT LAUNCH", fill=(255, 255, 255))
+
+        # Typography with trademark casing error and copy typo
+        draw.text((70, 110), "Connect with our executive network on Linkedin", fill=(15, 23, 42))
+        draw.text((70, 160), "Unlock unlimitted real-time cloud data pipelines", fill=(51, 65, 85))
+        draw.text((70, 210), "Claim our exclusive 100% risk-free trial deployment", fill=(15, 23, 42))
+
+        # Microscopic disclaimer text at bottom (< 1.2% canvas height)
+        draw.text((50, 395), "Terms apply. All claims are subject to independent commercial arbitration under state law.", fill=(148, 163, 184))
+
+        buf = io.BytesIO()
+        info = PngImagePlugin.PngInfo()
+        info.add_text("Description", "Connect with our executive network on Linkedin. Unlock unlimitted real-time cloud data pipelines. Claim our exclusive 100% risk-free trial deployment. Terms apply. All claims are subject to independent commercial arbitration under state law.")
+        img.save(buf, format="PNG", pnginfo=info)
+        return (
+            buf.getvalue(),
+            "enterprise_launch_poster.png",
+            "Enterprise Multi-Violation Launch Poster (Casing + Typo + Claim + Disclaimer)",
+            "Enterprise launch announcement poster with partner links."
+        )

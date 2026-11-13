@@ -29,6 +29,72 @@ import {
 import { VisualAnalysisReport } from "@/types";
 import { api, getApiBaseUrl } from "@/lib/api";
 
+interface SamplePreset {
+  id: string;
+  title: string;
+  badge: string;
+  icon: string;
+  brand: string;
+  description: string;
+  violations_preview: string[];
+}
+
+const SAMPLE_PRESETS: SamplePreset[] = [
+  {
+    id: "pepsi-campaign-poster",
+    title: "Pepsi Multimodal Poster",
+    badge: "All 4 Categories",
+    icon: "🥤",
+    brand: "Pepsi",
+    description: "Outdated/Purple Logo + Off-Brand Colors + #1 Claim + Low Contrast",
+    violations_preview: [
+      "Logo Mismatch: Purple Pepsi Globe (#9C27B0) instead of official Pepsi Blue (#004B93)",
+      "Off-brand color palette (#9C27B0 & cream #FFFDE7)",
+      "Unsupported promotional claim (#1 in the world with 100% guarantee)",
+      "WCAG 2.1 AA contrast failure (< 4.5:1)",
+      "Typo: 'revalutionary'",
+    ],
+  },
+  {
+    id: "apple-certified-card",
+    title: "Apple Partner Card",
+    badge: "Card Framing & Proportions",
+    icon: "🍎",
+    brand: "Apple",
+    description: "Container framing & horizontally stretched Apple logo (0.82:1 canonical)",
+    violations_preview: [
+      "Distorted logo proportions (stretched horizontally)",
+      "Container card preservation without wiping canvas",
+    ],
+  },
+  {
+    id: "lg-display-banner",
+    title: "LG UltraWide Banner",
+    badge: "16:9 Standardization",
+    icon: "📺",
+    brand: "LG",
+    description: "2.79:1 banner non-destructively standardized to 16:9 marketing format",
+    violations_preview: [
+      "Non-standard canvas ratio (2.79:1)",
+      "Standardize to 16:9 landscape without distorting artwork",
+    ],
+  },
+  {
+    id: "enterprise-launch-poster",
+    title: "Enterprise Launch Poster",
+    badge: "Casing & Claims",
+    icon: "🛡️",
+    brand: "Enterprise",
+    description: "Brand casing ('Linkedin'), typo ('unlimitted'), claim & microscopic disclaimer",
+    violations_preview: [
+      "Brand name casing error ('Linkedin' -> 'LinkedIn')",
+      "Promotional typo ('unlimitted' -> 'unlimited')",
+      "Unqualified claim ('100% risk-free')",
+      "Microscopic disclaimer text hazard",
+    ],
+  },
+];
+
 interface VisualAuditPanelProps {
   submissionId?: string;
   onAnalysisComplete?: (report: VisualAnalysisReport) => void;
@@ -42,6 +108,7 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
   const [report, setReport] = useState<VisualAnalysisReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isGeneratingFix, setIsGeneratingFix] = useState<boolean>(false);
+  const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"side_by_side" | "original" | "corrected">("side_by_side");
@@ -52,6 +119,31 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const apiBase = getApiBaseUrl();
+
+  const handleLoadPreset = async (presetId: string) => {
+    try {
+      setLoadingPresetId(presetId);
+      setStatusMessage({ type: "info", text: `Synthesizing test graphic and executing Multimodal Brand Intelligence inspection...` });
+      const res = await api.post(`/multimodal/sample-presets/${presetId}/load`);
+      const newReport = res.data;
+      setReport(newReport);
+      setPreviewUrl(`${apiBase}/multimodal/reports/${newReport.report_id}/image/original`);
+      setSelectedFile(null);
+      setViewMode("side_by_side");
+      setStatusMessage({
+        type: "success",
+        text: `Loaded test preset '${newReport.title || presetId}'. ${newReport.visual_issues?.length || 0} multimodal brand governance findings detected.`
+      });
+      if (onAnalysisComplete) onAnalysisComplete(newReport);
+    } catch (err: any) {
+      setStatusMessage({
+        type: "error",
+        text: err?.response?.data?.detail || "Failed to load sample preset test case."
+      });
+    } finally {
+      setLoadingPresetId(null);
+    }
+  };
 
   // Load existing visual reports for this submission if available
   useEffect(() => {
@@ -360,6 +452,89 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
       )}
 
       <div className="p-6 space-y-6">
+        {/* Sample Presets Quick-Launch Bar */}
+        <div className="p-4 rounded-2xl bg-lavender-50/70 border border-midnight-100 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-xs font-bold text-midnight-950 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                Interactive Brand Governance Test Presets (1-Click Verification)
+              </span>
+              <p className="text-[11px] text-midnight-600 mt-0.5">
+                Load authentic multimodal test cases demonstrating real-world brand violations &amp; surgical corrections:
+              </p>
+            </div>
+            {previewUrl && (
+              <button
+                onClick={() => {
+                  setPreviewUrl(null);
+                  setSelectedFile(null);
+                  setReport(null);
+                  setStatusMessage(null);
+                }}
+                className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 hover:underline flex items-center gap-1"
+              >
+                <Upload className="w-3 h-3" />
+                Upload Custom Asset Instead
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {SAMPLE_PRESETS.map((preset) => {
+              const isLoading = loadingPresetId === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => handleLoadPreset(preset.id)}
+                  disabled={Boolean(loadingPresetId)}
+                  className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between group ${
+                    report?.preset_id === preset.id
+                      ? "border-brand-500 bg-white ring-1 ring-brand-500 shadow-xs"
+                      : "border-midnight-100 bg-white/90 hover:bg-white hover:border-brand-300 hover:shadow-xs"
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-base">{preset.icon}</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+                        {preset.badge}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-xs text-midnight-950 block group-hover:text-brand-600 transition-colors">
+                        {preset.title}
+                      </span>
+                      <p className="text-[10.5px] text-midnight-600 mt-0.5 line-clamp-2">
+                        {preset.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-midnight-100/60 flex items-center justify-between text-[10px]">
+                    <span className="font-semibold text-brand-600 group-hover:underline flex items-center gap-1">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin text-brand-600" />
+                          <span>Auditing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 text-brand-600" />
+                          <span>1-Click Test</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-[9px] text-midnight-400 font-mono">
+                      {preset.brand}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Upload State */}
         {!previewUrl ? (
           <div
@@ -380,7 +555,7 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
               Upload marketing visual, social banner, or branded graphic
             </p>
             <p className="text-xs text-midnight-500 mt-1">
-              Supports PNG, JPG, JPEG, WEBP up to 15MB
+              Supports PNG, JPG, JPEG, WEBP up to 15MB (or test with 1-click sample presets above)
             </p>
           </div>
         ) : (
@@ -834,9 +1009,16 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                                 </div>
                               )}
 
-                              <p className="text-midnight-700 text-[11px] leading-relaxed">
-                                {iss.explanation}
-                              </p>
+                              {/* Policy Violation Explanation: What's Wrong */}
+                              <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-[11px] space-y-1">
+                                <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  <span>Policy Violation: What&apos;s Wrong</span>
+                                </div>
+                                <p className="text-rose-950 leading-relaxed font-sans pl-5">
+                                  {iss.explanation}
+                                </p>
+                              </div>
 
                               {/* Verification Status & Reference Source */}
                               <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] pt-0.5">

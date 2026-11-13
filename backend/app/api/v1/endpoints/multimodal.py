@@ -20,6 +20,8 @@ from app.engine.multimodal_engine import (
     generate_corrected_visual_asset,
     verify_corrected_visual_asset,
     VERIFIED_BRAND_REGISTRY,
+    SAMPLE_PRESETS_METADATA,
+    synthesize_sample_preset_image,
 )
 
 router = APIRouter()
@@ -225,6 +227,169 @@ def analyze_visual_endpoint(
         "report_id": report.id,
         "submission_id": sub.id,
         "filename": filename,
+        "dimensions": f"{report.image_width}x{report.image_height}",
+        "aspect_ratio": report.aspect_ratio,
+        "visual_score": report.visual_score,
+        "wcag_compliance": report.wcag_compliance,
+        "contrast_ratio": report.contrast_ratio,
+        "contrast_details": report.contrast_details,
+        "palette_match_score": report.palette_match_score,
+        "dominant_colors": report.dominant_colors,
+        "palette_deviations": report.palette_deviations,
+        "alt_text_evaluation": report.alt_text_evaluation,
+        "logo_status": report.logo_status,
+        "ocr_extracted_text": report.ocr_extracted_text,
+        "visual_issues": report.visual_issues,
+        "review_status": report.review_status,
+        "has_corrected_image": bool(report.corrected_image_path),
+        "post_correction_verification": report.post_correction_verification,
+        "accepted_corrections": report.accepted_corrections or [],
+        "rejected_corrections": report.rejected_corrections or [],
+    }
+
+
+@router.get("/sample-presets", summary="Get Available Visual Intelligence Test Presets")
+def get_sample_presets(
+    current_user: User = Depends(require_any_authenticated),
+):
+    """Returns curated sample test cases demonstrating all multimodal brand governance capabilities."""
+    return SAMPLE_PRESETS_METADATA
+
+
+@router.post("/sample-presets/{preset_id}/load", status_code=status.HTTP_201_CREATED, summary="Load and Execute Sample Test Case")
+def load_sample_preset_endpoint(
+    preset_id: str,
+    current_user: User = Depends(require_creator),
+    db: Session = Depends(get_db),
+):
+    """
+    Synthesizes the preset test image and executes complete Multimodal Brand Intelligence inspection:
+    - Pepsi Campaign Poster (Outdated/Purple Logo + Off-Brand Colors + #1 in the World Claim + Low Contrast Text)
+    - Apple Certified Card (Container Framing & Proportions)
+    - LG UltraWide Banner (Aspect Ratio Standardization)
+    - Enterprise Launch Poster (Casing + Typo + Disclaimers)
+    """
+    image_bytes, filename, title, alt_text = synthesize_sample_preset_image(preset_id)
+
+    safe_name = f"sample_{preset_id}_{uuid.uuid4().hex[:8]}.png"
+    file_path = os.path.join(IMAGE_UPLOAD_DIR, safe_name)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+
+    sub = ContentSubmission(
+        id=str(uuid.uuid4()),
+        organization_id=current_user.organization_id,
+        creator_id=current_user.id,
+        title=f"Sample Test: {title}",
+        category="social_media",
+        target_platform="Web / Marketing Banner",
+        status=SubmissionStatus.DRAFT.value,
+    )
+    db.add(sub)
+    db.flush()
+
+    brand_asset = db.query(BrandAsset).filter(
+        BrandAsset.organization_id == current_user.organization_id,
+        BrandAsset.is_active == True
+    ).first()
+
+    brand_guidelines = db.query(BrandGuideline).filter(
+        BrandGuideline.organization_id == current_user.organization_id,
+        BrandGuideline.is_active == True
+    ).all()
+
+    analysis_res = analyze_visual_asset(
+        image_bytes=image_bytes,
+        alt_text=alt_text,
+        brand_asset=brand_asset,
+        brand_guidelines=brand_guidelines
+    )
+
+    uploaded_file = UploadedFile(
+        id=str(uuid.uuid4()),
+        submission_id=sub.id,
+        original_filename=filename,
+        stored_path=file_path,
+        mime_type="image/png",
+        file_size_bytes=len(image_bytes),
+        extracted_text=analysis_res.get("ocr_extracted_text", ""),
+        metadata_json={
+            "width": analysis_res["image_width"],
+            "height": analysis_res["image_height"],
+            "aspect_ratio": analysis_res["aspect_ratio"],
+            "preset_id": preset_id
+        }
+    )
+    db.add(uploaded_file)
+    db.flush()
+
+    body_parts = [f"[Visual Brand Asset: {filename}]"]
+    if analysis_res.get("ocr_extracted_text"):
+        body_parts.append(f"OCR Extracted Copy:\n{analysis_res['ocr_extracted_text']}")
+    if alt_text:
+        body_parts.append(f"Accessibility Alt Text:\n{alt_text}")
+
+    initial_ver = ContentVersion(
+        id=str(uuid.uuid4()),
+        submission_id=sub.id,
+        version_number=1,
+        content_body="\n\n".join(body_parts),
+        change_summary=f"Initialized from sample test preset: {title}"
+    )
+    db.add(initial_ver)
+    db.flush()
+    sub.current_version_id = initial_ver.id
+    sub.status = SubmissionStatus.ANALYSIS_COMPLETE.value
+
+    report = VisualAnalysisReport(
+        id=str(uuid.uuid4()),
+        submission_id=sub.id,
+        uploaded_file_id=uploaded_file.id,
+        organization_id=current_user.organization_id,
+        image_width=analysis_res["image_width"],
+        image_height=analysis_res["image_height"],
+        aspect_ratio=analysis_res["aspect_ratio"],
+        dominant_colors=analysis_res["dominant_colors"],
+        palette_match_score=analysis_res["palette_match_score"],
+        palette_deviations=analysis_res["palette_deviations"],
+        contrast_ratio=analysis_res["contrast_ratio"],
+        wcag_compliance=analysis_res["wcag_compliance"],
+        contrast_details=analysis_res["contrast_details"],
+        alt_text_evaluation=analysis_res["alt_text_evaluation"],
+        logo_status=analysis_res["logo_status"],
+        logo_confidence=analysis_res.get("logo_confidence", 1.0),
+        detected_logo_name=analysis_res.get("detected_logo_name"),
+        ocr_extracted_text=analysis_res.get("ocr_extracted_text", ""),
+        ocr_character_count=len(analysis_res.get("ocr_extracted_text", "") or ""),
+        ocr_confidence=analysis_res.get("ocr_confidence", 0.9),
+        visual_score=analysis_res["visual_score"],
+        visual_issues=analysis_res["visual_issues"],
+    )
+    db.add(report)
+
+    audit = AuditLog(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        action="SAMPLE_PRESET_AUDIT_LOADED",
+        entity_type="visual_report",
+        entity_id=report.id,
+        details={
+            "preset_id": preset_id,
+            "submission_id": sub.id,
+            "visual_score": report.visual_score,
+            "issues_count": len(report.visual_issues or []),
+        }
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(report)
+
+    return {
+        "report_id": report.id,
+        "submission_id": sub.id,
+        "filename": filename,
+        "title": title,
+        "preset_id": preset_id,
         "dimensions": f"{report.image_width}x{report.image_height}",
         "aspect_ratio": report.aspect_ratio,
         "visual_score": report.visual_score,
