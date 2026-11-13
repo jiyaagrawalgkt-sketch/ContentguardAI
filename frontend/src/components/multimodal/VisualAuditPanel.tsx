@@ -20,6 +20,8 @@ import {
   Send,
   Download,
   ShieldCheck,
+  Building2,
+  AlertCircle,
   Maximize2,
   RefreshCw,
 } from "lucide-react";
@@ -420,6 +422,7 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                     {report?.visual_issues?.map((iss, i) => {
                       if (!iss.region) return null;
                       const isHighlighted = activeFindingId === (iss.id || `iss-${i}`);
+                      const isCrit = iss.severity === "critical";
                       return (
                         <div
                           key={iss.id || i}
@@ -432,13 +435,15 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                           }}
                           className={`absolute border-2 rounded transition-all cursor-pointer ${
                             isHighlighted
-                              ? "border-amber-400 bg-amber-400/20 ring-2 ring-amber-300 shadow-lg"
-                              : "border-rose-400/80 bg-rose-400/10 hover:border-amber-400 hover:bg-amber-400/20"
+                              ? "border-amber-400 bg-amber-400/25 ring-2 ring-amber-300 shadow-xl z-20"
+                              : isCrit
+                              ? "border-rose-500/90 bg-rose-500/15 hover:border-amber-400 hover:bg-amber-400/20 z-10"
+                              : "border-brand-500/80 bg-brand-500/10 hover:border-amber-400 hover:bg-amber-400/20"
                           }`}
                           title={iss.title}
                         >
-                          <span className="absolute -top-5 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-midnight-900/90 text-white shadow-sm border border-midnight-700">
-                            #{i + 1} {iss.type.replace(/_/g, " ")}
+                          <span className="absolute -top-5 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-midnight-950 text-white shadow-md border border-midnight-700 whitespace-nowrap">
+                            #{i + 1} {iss.category ? iss.category.replace(/_/g, " ").toUpperCase() : iss.type.replace(/_/g, " ")}
                           </span>
                         </div>
                       );
@@ -588,10 +593,31 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                                  <span className="font-bold text-midnight-950">{iss.title}</span>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                      iss.severity === "critical"
+                                        ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                        : iss.severity === "high"
+                                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                        : iss.severity === "medium"
+                                        ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
+                                        : "bg-slate-100 text-slate-700 border border-slate-200"
+                                    }`}>
+                                      {iss.severity}
+                                    </span>
+                                    {iss.category && (
+                                      <span className="text-[9px] font-semibold text-midnight-500 uppercase tracking-wider">
+                                        • {iss.category.replace(/_/g, " ")}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertTriangle className={`w-4 h-4 shrink-0 ${iss.severity === "critical" ? "text-rose-600" : "text-amber-600"}`} />
+                                    <span className="font-bold text-midnight-950">{iss.title}</span>
+                                  </div>
                                 </div>
+
                                 <div className="flex items-center gap-1 shrink-0">
                                   {isAccepted ? (
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -609,9 +635,58 @@ export function VisualAuditPanel({ submissionId, onAnalysisComplete, onReviewSub
                                 </div>
                               </div>
 
+                              {/* Detected Element vs Expected Reference Comparison */}
+                              {iss.detected_element && iss.expected_reference && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl bg-lavender-50/70 border border-midnight-100">
+                                  <div>
+                                    <span className="font-bold text-rose-800 block text-[10px] uppercase tracking-wider">
+                                      Detected Visual Element
+                                    </span>
+                                    <span className="text-midnight-900 font-mono text-[10.5px] leading-tight block mt-0.5">
+                                      {iss.detected_element}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-emerald-800 block text-[10px] uppercase tracking-wider">
+                                      Expected Reference Standard
+                                    </span>
+                                    <span className="text-midnight-900 font-mono text-[10.5px] leading-tight block mt-0.5">
+                                      {iss.expected_reference}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
                               <p className="text-midnight-700 text-[11px] leading-relaxed">
                                 {iss.explanation}
                               </p>
+
+                              {/* Verification Status & Reference Source */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] pt-0.5">
+                                <div>
+                                  {iss.verification_status === "verified_official_reference" ? (
+                                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                      Verified Official Reference
+                                    </span>
+                                  ) : iss.verification_status === "verified_organization_asset" ? (
+                                    <span className="inline-flex items-center gap-1 font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                                      <Building2 className="w-3 h-3 text-indigo-600" />
+                                      Verified Org Asset
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                                      Unverified Brand Reference
+                                    </span>
+                                  )}
+                                </div>
+                                {iss.reference_source && (
+                                  <span className="text-midnight-500 font-medium truncate max-w-xs">
+                                    Ref: {iss.reference_source}
+                                  </span>
+                                )}
+                              </div>
 
                               <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-950 text-[11px]">
                                 <strong>Recommended Fix:</strong> {iss.suggestion}

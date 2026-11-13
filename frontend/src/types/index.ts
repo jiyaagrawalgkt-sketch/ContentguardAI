@@ -119,6 +119,13 @@ export interface VisualAnalysisReport {
     suggestion: string;
     region?: { x: number; y: number; width: number; height: number };
     category?: string;
+    detected_element?: string;
+    expected_reference?: string;
+    reference_source?: string;
+    verification_status?: "verified_official_reference" | "verified_organization_asset" | "unverified_unknown_reference" | string;
+    confidence?: number;
+    correction_type?: string;
+    replacement_asset_url?: string;
   }>;
   review_status?: string;
   has_corrected_image?: boolean;
